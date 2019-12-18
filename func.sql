@@ -12,19 +12,19 @@ DROP TABLE IF EXISTS books_genres CASCADE;
 DROP TABLE IF EXISTS orders_details CASCADE;
 DROP TABLE IF EXISTS books_discounts CASCADE;
 DROP TABLE IF EXISTS customers_discounts CASCADE;
-
+---------------------------------------
 DROP VIEW IF EXISTS book_adder;
 DROP VIEW IF EXISTS books_rank;
-
+--------------------------------------
 DROP FUNCTION IF EXISTS is_phonenumber();
 DROP FUNCTION IF EXISTS give_discount();
 DROP FUNCTION IF EXISTS is_available();
 DROP FUNCTION IF EXISTS has_bought();
 DROP FUNCTION IF EXISTS is_isbn();
-
+--------------------------------------
 DROP RULE IF EXISTS adder
 ON book_adder;
-
+--------------------------------------
 CREATE OR REPLACE FUNCTION has_bought()
   RETURNS TRIGGER AS $$
 BEGIN
@@ -209,6 +209,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION is_available()
+  RETURNS TRIGGER AS $$
+BEGIN
+  IF new.amount <= 0
+  THEN
+    RETURN NULL;
+  END IF;
+  IF new.amount > (SELECT books.available_quantity
+                   FROM books
+                   WHERE new.book_id = books.isbn
+                   LIMIT 1)
+  THEN
+    RAISE EXCEPTION 'NOT AVAILABLE';
+  END IF;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql;
+
 -----------------------------------
 CREATE TABLE authors (
   id           SERIAL PRIMARY KEY,
@@ -316,7 +334,7 @@ CREATE UNIQUE INDEX authors_ind_1
 CREATE UNIQUE INDEX authors_ind_2
   ON authors (company_name)
   WHERE company_name IS NOT NULL;
-
+--------------------------------
 
 CREATE TRIGGER rank_setter
 AFTER INSERT OR UPDATE ON orders_details
@@ -346,6 +364,10 @@ CREATE TRIGGER hasbook_check
 BEFORE INSERT OR UPDATE ON reviews
 FOR EACH ROW EXECUTE PROCEDURE has_bought();
 
+CREATE TRIGGER available_check
+BEFORE INSERT OR UPDATE ON orders_details
+FOR EACH ROW EXECUTE PROCEDURE is_available();
+-----------------------------------------------
 CREATE OR REPLACE VIEW book_adder AS (
   SELECT
     books.isbn,
@@ -362,31 +384,6 @@ CREATE OR REPLACE VIEW book_adder AS (
     JOIN authors ON books.author = authors.id
     JOIN publishers ON books.publisher = publishers.id
   WHERE 1 = 0);
-
-CREATE RULE checkdate AS ON INSERT TO reviews DO ALSO (
-  DELETE FROM reviews
-  WHERE date > now() AND customer_id = new.customer_id AND book_id = new.book_id;
-);
-
-CREATE RULE adder AS ON INSERT TO book_adder DO INSTEAD (
-  INSERT INTO authors (first_name, second_name, company_name)
-  VALUES (new.first_name, new.second_name, new.company_name)
-  ON CONFLICT DO NOTHING;
-  INSERT INTO publishers (name) VALUES (new.publisher)
-  ON CONFLICT DO NOTHING;
-
-  INSERT INTO books (isbn, title, publication_date, edition, available_quantity, price, author, publisher)
-  VALUES (new.isbn, new.title, new.publication_date, new.edition, new.available_quantity, new.price,
-          (SELECT id
-           FROM authors
-           WHERE (authors.first_name LIKE new.first_name AND authors.second_name LIKE new.second_name) OR
-                 authors.company_name LIKE new.company_name
-           LIMIT 1),
-          (SELECT id
-           FROM publishers
-           WHERE name LIKE new.publisher
-           LIMIT 1));
-);
 
 CREATE OR REPLACE VIEW books_rank AS (
   SELECT
@@ -415,24 +412,30 @@ CREATE OR REPLACE VIEW books_rank AS (
   ORDER BY sold DESC, rate DESC
 );
 
-CREATE OR REPLACE FUNCTION is_available()
-  RETURNS TRIGGER AS $$
-BEGIN
-  IF new.amount <= 0
-  THEN
-    RETURN NULL;
-  END IF;
-  IF new.amount > (SELECT books.available_quantity
-                   FROM books
-                   WHERE new.book_id = books.isbn
-                   LIMIT 1)
-  THEN
-    RAISE EXCEPTION 'NOT AVAILABLE';
-  END IF;
-  RETURN new;
-END; $$
-LANGUAGE plpgsql;
+-------------------------------------------------------------
 
-CREATE TRIGGER available_check
-BEFORE INSERT OR UPDATE ON orders_details
-FOR EACH ROW EXECUTE PROCEDURE is_available();
+
+CREATE RULE checkdate AS ON INSERT TO reviews DO ALSO (
+  DELETE FROM reviews
+  WHERE date > now() AND customer_id = new.customer_id AND book_id = new.book_id;
+);
+
+CREATE RULE adder AS ON INSERT TO book_adder DO INSTEAD (
+  INSERT INTO authors (first_name, second_name, company_name)
+  VALUES (new.first_name, new.second_name, new.company_name)
+  ON CONFLICT DO NOTHING;
+  INSERT INTO publishers (name) VALUES (new.publisher)
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO books (isbn, title, publication_date, edition, available_quantity, price, author, publisher)
+  VALUES (new.isbn, new.title, new.publication_date, new.edition, new.available_quantity, new.price,
+          (SELECT id
+           FROM authors
+           WHERE (authors.first_name LIKE new.first_name AND authors.second_name LIKE new.second_name) OR
+                 authors.company_name LIKE new.company_name
+           LIMIT 1),
+          (SELECT id
+           FROM publishers
+           WHERE name LIKE new.publisher
+           LIMIT 1));
+);

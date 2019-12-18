@@ -17,6 +17,211 @@ DROP TABLE IF EXISTS books_discounts CASCADE;
 DROP TABLE IF EXISTS customers_addresses CASCADE;
 DROP TABLE IF EXISTS customers_discounts CASCADE;
 
+-------------------------------------------------
+
+CREATE OR REPLACE FUNCTION has_bought()
+  RETURNS TRIGGER AS $$
+BEGIN
+  IF (SELECT count(book_id) AS a
+      FROM orders_details
+        JOIN orders ON orders_details.order_id = orders.id
+      WHERE customer_id = new.customer_id AND book_id LIKE new.book_id) = 0
+  THEN RAISE EXCEPTION 'CUSTOMER HAS NOT BOUGHT THIS BOOK'; END IF;
+
+  IF (SELECT count(book_id)
+      FROM reviews
+      WHERE
+        book_id LIKE new.book_id AND customer_id = new.customer_id) > 0
+  THEN
+    DELETE FROM reviews
+    WHERE customer_id = NEW.customer_id AND book_id LIKE NEW.book_id;
+  END IF;
+
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION give_discount()
+  RETURNS TRIGGER AS $$
+DECLARE id  BIGINT DEFAULT NULL;
+        val NUMERIC DEFAULT NULL;
+BEGIN
+  val = (SELECT max(discounts.value)
+         FROM discounts
+           JOIN customers_discounts ON discounts.id = customers_discounts.discount_id
+         WHERE customer_id = new.customer_id);
+  id = (SELECT discounts.id
+        FROM discounts
+          JOIN customers_discounts ON discounts.id = customers_discounts.discount_id
+        WHERE customer_id = new.customer_id AND discounts.value = val);
+  new.discount_id = id;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION is_phonenumber()
+  RETURNS TRIGGER AS $$
+DECLARE tmp NUMERIC;
+BEGIN
+  IF (length(new.phone_number) != 9)
+  THEN RAISE EXCEPTION 'INVALID PHONE NUMBER'; END IF;
+  tmp = new.phone_number :: NUMERIC;
+  RETURN new;
+  EXCEPTION WHEN OTHERS
+  THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
+    RETURN new;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION is_isbn()
+  RETURNS TRIGGER AS $$
+DECLARE tmp NUMERIC DEFAULT 11;
+BEGIN
+  IF (length(new.isbn) = 13)
+  THEN tmp = (11 - (
+                     substr(NEW.isbn, 1, 1) :: NUMERIC * 10 +
+                     substr(NEW.isbn, 3, 1) :: NUMERIC * 9 +
+                     substr(NEW.isbn, 4, 1) :: NUMERIC * 8 +
+                     substr(NEW.isbn, 5, 1) :: NUMERIC * 7 +
+                     substr(NEW.isbn, 7, 1) :: NUMERIC * 6 +
+                     substr(NEW.isbn, 8, 1) :: NUMERIC * 5 +
+                     substr(NEW.isbn, 9, 1) :: NUMERIC * 4 +
+                     substr(NEW.isbn, 10, 1) :: NUMERIC * 3 +
+                     substr(NEW.isbn, 11, 1) :: NUMERIC * 2)
+                   % 11) % 11;
+  END IF;
+  IF ((length(NEW.isbn) = 17
+       AND (
+             substr(NEW.isbn, 1, 1) :: NUMERIC +
+             substr(NEW.isbn, 2, 1) :: NUMERIC * 3 +
+             substr(NEW.isbn, 3, 1) :: NUMERIC +
+             substr(NEW.isbn, 5, 1) :: NUMERIC * 3 +
+             substr(NEW.isbn, 6, 1) :: NUMERIC +
+             substr(NEW.isbn, 8, 1) :: NUMERIC * 3 +
+             substr(NEW.isbn, 9, 1) :: NUMERIC +
+             substr(NEW.isbn, 10, 1) :: NUMERIC * 3 +
+             substr(NEW.isbn, 11, 1) :: NUMERIC +
+             substr(NEW.isbn, 12, 1) :: NUMERIC * 3 +
+             substr(NEW.isbn, 14, 1) :: NUMERIC +
+             substr(NEW.isbn, 15, 1) :: NUMERIC * 3)
+           % 10 = substr(NEW.isbn, 17, 1) :: NUMERIC)
+      OR (length(new.isbn) = 13
+          AND ((tmp = 10 AND substr(new.isbn, 13, 1) = 'X')
+               OR tmp = substr(NEW.isbn, 13, 1) :: NUMERIC))
+  )
+  THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'INVALID ISBN';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION is_nip()
+  RETURNS TRIGGER AS $$
+DECLARE
+  tmp NUMERIC DEFAULT 11;
+BEGIN
+  IF (length(new.nip) = 0)
+  THEN new.nip = NULL;
+    RETURN new; END IF;
+  IF (length(new.nip) = 10)
+  THEN tmp = ((substr(NEW.nip, 1, 1) :: NUMERIC * 6 +
+               substr(new.nip, 2, 1) :: NUMERIC * 5 +
+               substr(NEW.nip, 3, 1) :: NUMERIC * 7 +
+               substr(NEW.nip, 4, 1) :: NUMERIC * 2 +
+               substr(NEW.nip, 5, 1) :: NUMERIC * 3 +
+               substr(NEW.nip, 6, 1) :: NUMERIC * 4 +
+               substr(NEW.nip, 7, 1) :: NUMERIC * 5 +
+               substr(NEW.nip, 8, 1) :: NUMERIC * 6 +
+               substr(NEW.nip, 9, 1) :: NUMERIC * 7)
+              % 11);
+  END IF;
+  IF tmp != substr(NEW.nip, 10, 1) :: NUMERIC
+  THEN
+    RAISE EXCEPTION 'INVALID NIP';
+  END IF;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION set_rank()
+  RETURNS TRIGGER AS $$
+DECLARE
+  val      NUMERIC DEFAULT 0;
+  quantity BIGINT;
+  disc     RECORD;
+  customer BIGINT;
+BEGIN
+  customer = (SELECT customer_id
+              FROM orders
+              WHERE id = new.order_id);
+
+  quantity = (SELECT coalesce(sum(orders_details.amount), 0)
+              FROM orders
+                LEFT JOIN orders_details ON orders.id = orders_details.order_id
+              WHERE orders.customer_id = customer
+              LIMIT 1);
+
+  FOR disc IN SELECT
+                customer_id,
+                discount_id
+              FROM customers_discounts
+                LEFT JOIN discounts ON discounts.id = customers_discounts.discount_id
+              WHERE customer_id = customer AND
+                    (discounts.name LIKE 'Bronze Client Rank' OR discounts.name LIKE 'Silver Client Rank' OR
+                     discounts.name LIKE 'Gold Client Rank' OR discounts.name LIKE 'Platinum Client Rank')
+              LIMIT 1 LOOP
+
+    val = (SELECT coalesce(max(discounts.value), 0)
+           FROM discounts
+           WHERE discounts.id = disc.discount_id);
+
+    IF quantity > 40 AND val < 0.12
+    THEN
+      DELETE FROM customers_discounts
+      WHERE discount_id = disc.discount_id AND customer_id = customer;
+      INSERT INTO customers_discounts (customer_id, discount_id) VALUES (customer, 4);
+    ELSIF quantity > 30 AND val < 0.08
+      THEN
+        DELETE FROM customers_discounts
+        WHERE discount_id = disc.discount_id AND customer_id = customer;
+        INSERT INTO customers_discounts (customer_id, discount_id) VALUES (customer, 3);
+    ELSIF quantity > 20 AND val < 0.05
+      THEN
+        DELETE FROM customers_discounts
+        WHERE discount_id = disc.discount_id AND customer_id = customer;
+        INSERT INTO customers_discounts (customer_id, discount_id) VALUES (customer, 2);
+    END IF;
+  END LOOP;
+
+  IF quantity > 10 AND val < 0.03 AND disc IS NULL
+  THEN
+    INSERT INTO customers_discounts (customer_id, discount_id) VALUES (customer, 1);
+  END IF;
+
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION is_available()
+  RETURNS TRIGGER AS $$
+BEGIN
+  IF new.amount <= 0
+  THEN
+    RETURN NULL;
+  END IF;
+  IF new.amount > (SELECT books.available_quantity
+                   FROM books
+                   WHERE new.book_id = books.isbn
+                   LIMIT 1)
+  THEN
+    RAISE EXCEPTION 'NOT AVAILABLE';
+  END IF;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql;
+
+-------------------------------------------------
 
 CREATE TABLE authors (
   id           SERIAL PRIMARY KEY,
