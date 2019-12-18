@@ -1,0 +1,68 @@
+postgresql	bookstore	public	books_authors	author_id	2	integer		FOREIGN KEY	public	authors	id
+postgresql	bookstore	public	books_authors	book_id	1	character varying		FOREIGN KEY	public	books	isbn
+postgresql	bookstore	public	books_authors	book_id	1	character varying		PRIMARY KEY			
+postgresql	bookstore	public	books_authors	author_id	2	integer		PRIMARY KEY			
+postgresql	bookstore	public	authors	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	books_genres	genre_id	2	integer		FOREIGN KEY	public	genres	id
+postgresql	bookstore	public	books_genres	book_id	1	character varying		FOREIGN KEY	public	books	isbn
+postgresql	bookstore	public	books_genres	book_id	1	character varying		PRIMARY KEY			
+postgresql	bookstore	public	books_genres	genre_id	2	integer		PRIMARY KEY			
+postgresql	bookstore	public	genres	name	2	character varying	100	UNIQUE			
+postgresql	bookstore	public	genres	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	customers	login	4	character varying	100	UNIQUE			
+postgresql	bookstore	public	customers	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	publishers	name	2	character varying	100	UNIQUE			
+postgresql	bookstore	public	publishers	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	books	publisher	7	integer		FOREIGN KEY	public	publishers	id
+postgresql	bookstore	public	books	isbn	1	character varying		PRIMARY KEY			
+postgresql	bookstore	public	customers_addresses	addresses_id	2	integer		FOREIGN KEY	public	addresses	id
+postgresql	bookstore	public	customers_addresses	customers_id	1	integer		FOREIGN KEY	public	customers	id
+postgresql	bookstore	public	customers_addresses	customers_id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	customers_addresses	addresses_id	2	integer		PRIMARY KEY			
+postgresql	bookstore	public	addresses	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	customers_discounts	discount_id	2	integer		FOREIGN KEY	public	discounts	id
+postgresql	bookstore	public	customers_discounts	customer_id	1	integer		FOREIGN KEY	public	customers	id
+postgresql	bookstore	public	discounts	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	books_discounts	discount_id	2	integer		FOREIGN KEY	public	discounts	id
+postgresql	bookstore	public	books_discounts	book_id	1	character varying		FOREIGN KEY	public	books	isbn
+postgresql	bookstore	public	orders	shipper	5	bigint		FOREIGN KEY	public	shippers	id
+postgresql	bookstore	public	orders	discount_id	4	bigint		FOREIGN KEY	public	discounts	id
+postgresql	bookstore	public	orders	customer_id	2	integer		FOREIGN KEY	public	customers	id
+postgresql	bookstore	public	orders	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	shippers	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	orders_details	order_id	2	bigint		FOREIGN KEY	public	orders	id
+postgresql	bookstore	public	orders_details	book_id	1	character varying		FOREIGN KEY	public	books	isbn
+postgresql	bookstore	public	reviews	customer_id	3	bigint		FOREIGN KEY	public	customers	id
+postgresql	bookstore	public	reviews	book_id	2	character varying		FOREIGN KEY	public	books	isbn
+postgresql	bookstore	public	reviews	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	rates	customer_id	3	bigint		FOREIGN KEY	public	customers	id
+postgresql	bookstore	public	rates	book_id	2	character varying		FOREIGN KEY	public	books	isbn
+postgresql	bookstore	public	rates	id	1	integer		PRIMARY KEY			
+postgresql	bookstore	public	addresses	street	3	character varying	100				
+postgresql	bookstore	public	addresses	postal_code	2	character varying	6				
+postgresql	bookstore	public	addresses	city	6	character varying	100				
+postgresql	bookstore	public	shippers	name	2	character varying	100				
+postgresql	bookstore	public	customers	passwordhash	5	character varying	100				
+postgresql	bookstore	public	discounts	value	3	numeric					
+postgresql	bookstore	public	discounts	name	2	character varying	100				
+postgresql	bookstore	public	addresses	flat_no	5	character varying	5				
+postgresql	bookstore	public	rates	rates	4	integer					
+postgresql	bookstore	public	customers	first_name	2	character varying	100				
+postgresql	bookstore	public	authors	second_name	3	character varying	100				
+postgresql	bookstore	public	books	publication_date	3	date					
+postgresql	bookstore	public	rates	date	5	date					
+postgresql	bookstore	public	books	edition	4	integer					
+postgresql	bookstore	public	reviews	date	5	date					
+postgresql	bookstore	public	books	title	2	character varying	100				
+postgresql	bookstore	public	authors	company_name	4	character varying	100				
+postgresql	bookstore	public	addresses	building_no	4	character varying	5				
+postgresql	bookstore	public	books	available_quantity	5	integer					
+postgresql	bookstore	public	orders	date	3	date					
+postgresql	bookstore	public	orders_details	amount	3	integer					
+postgresql	bookstore	public	customers	last_name	3	character varying	100				
+postgresql	bookstore	public	orders	state	6	character varying					
+postgresql	bookstore	public	customers	phone_number	6	character varying	9				
+postgresql	bookstore	public	authors	first_name	2	character varying	100				
+postgresql	bookstore	public	books	price	6	numeric					
+postgresql	bookstore	public	reviews	review	4	character varying	1000				
+postgresql	bookstore	public	shippers	phone_number	3	character varying	9				
