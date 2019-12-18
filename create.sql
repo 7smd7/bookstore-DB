@@ -19,7 +19,7 @@ DROP TABLE IF EXISTS customers_discounts CASCADE;
 
 -------------------------------------------------
 
-CREATE OR REPLACE FUNCTION has_bought()
+CREATE FUNCTION has_bought()
   RETURNS TRIGGER AS $$
 BEGIN
   IF (SELECT count(book_id) AS a
@@ -28,20 +28,19 @@ BEGIN
       WHERE customer_id = new.customer_id AND book_id LIKE new.book_id) = 0
   THEN RAISE EXCEPTION 'CUSTOMER HAS NOT BOUGHT THIS BOOK'; END IF;
 
-  IF (SELECT count(book_id)
-      FROM reviews
-      WHERE
-        book_id LIKE new.book_id AND customer_id = new.customer_id) > 0
-  THEN
-    DELETE FROM reviews
-    WHERE customer_id = NEW.customer_id AND book_id LIKE NEW.book_id;
-  END IF;
-
+--   IF (SELECT count(book_id)
+--       FROM reviews
+--       WHERE
+--         book_id LIKE new.book_id AND customer_id = new.customer_id) > 0
+--   THEN
+--     DELETE FROM reviews
+--     WHERE customer_id = NEW.customer_id AND book_id LIKE NEW.book_id; ------WTF??
+--   END IF;
   RETURN new;
-END;
-$$ LANGUAGE plpgsql;
+END; $$LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION give_discount()
+
+CREATE FUNCTION give_discount()
   RETURNS TRIGGER AS $$
 DECLARE id  BIGINT DEFAULT NULL;
         val NUMERIC DEFAULT NULL;
@@ -56,10 +55,10 @@ BEGIN
         WHERE customer_id = new.customer_id AND discounts.value = val);
   new.discount_id = id;
   RETURN new;
-END;
-$$ LANGUAGE plpgsql;
+END; $$LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION is_phonenumber()
+
+CREATE FUNCTION is_phonenumber()
   RETURNS TRIGGER AS $$
 DECLARE tmp NUMERIC;
 BEGIN
@@ -70,10 +69,10 @@ BEGIN
   EXCEPTION WHEN OTHERS
   THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
     RETURN new;
-END;
-$$ LANGUAGE plpgsql;
+END; $$LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION is_isbn()
+
+CREATE FUNCTION is_isbn()
   RETURNS TRIGGER AS $$
 DECLARE tmp NUMERIC DEFAULT 11;
 BEGIN
@@ -113,10 +112,10 @@ BEGIN
     RETURN NEW;
   END IF;
   RAISE EXCEPTION 'INVALID ISBN';
-END;
-$$ LANGUAGE plpgsql;
+END: $$
 
-CREATE OR REPLACE FUNCTION is_nip()
+
+CREATE FUNCTION is_nip()
   RETURNS TRIGGER AS $$
 DECLARE
   tmp NUMERIC DEFAULT 11;
@@ -141,10 +140,10 @@ BEGIN
     RAISE EXCEPTION 'INVALID NIP';
   END IF;
   RETURN new;
-END;
-$$ LANGUAGE plpgsql;
+END; $$LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION set_rank()
+
+CREATE FUNCTION set_rank()
   RETURNS TRIGGER AS $$
 DECLARE
   val      NUMERIC DEFAULT 0;
@@ -200,10 +199,10 @@ BEGIN
   END IF;
 
   RETURN new;
-END;
-$$ LANGUAGE plpgsql;
+END; $$LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION is_available()
+
+CREATE FUNCTION is_available()
   RETURNS TRIGGER AS $$
 BEGIN
   IF new.amount <= 0
@@ -218,8 +217,8 @@ BEGIN
     RAISE EXCEPTION 'NOT AVAILABLE';
   END IF;
   RETURN new;
-END;
-$$ LANGUAGE plpgsql;
+END; $$LANGUAGE plpgsql;
+
 
 -------------------------------------------------
 
