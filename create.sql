@@ -16,7 +16,19 @@ DROP TABLE IF EXISTS orders_details CASCADE;
 DROP TABLE IF EXISTS books_discounts CASCADE;
 DROP TABLE IF EXISTS customers_addresses CASCADE;
 DROP TABLE IF EXISTS customers_discounts CASCADE;
-
+-------------------------------------------------
+DROP FUNCTION IF EXISTS is_phonenumber();
+DROP FUNCTION IF EXISTS give_discount();
+DROP FUNCTION IF EXISTS is_available();
+DROP FUNCTION IF EXISTS has_bought();
+DROP FUNCTION IF EXISTS set_rank();
+DROP FUNCTION IF EXISTS is_isbn();
+-------------------------------------------------
+DROP VIEW IF EXISTS book_adder;
+DROP VIEW IF EXISTS books_rank;
+-------------------------------------------------
+DROP RULE IF EXISTS adder
+ON book_adder;
 -------------------------------------------------
 
 CREATE FUNCTION has_bought()
@@ -185,7 +197,7 @@ BEGIN
   IF new.amount > (SELECT books.available_quantity
                    FROM books
                    WHERE new.book_id = books.isbn
-                   LIMIT 1) ---??WTF limit
+                   LIMIT 1)
   THEN
     RAISE EXCEPTION 'NOT AVAILABLE';
   END IF;
@@ -314,6 +326,115 @@ CREATE TABLE rates (
   id          SERIAL PRIMARY KEY,
   book_id     VARCHAR NOT NULL REFERENCES books (isbn) ON DELETE CASCADE,
   customer_id BIGINT  NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
-  rates       INTEGER CHECK (review BETWEEN 0 AND 10),
+  rates       INTEGER CHECK (rates BETWEEN 0 AND 10),
   date        DATE DEFAULT now()
 );
+
+---------------------------------------------------------------
+
+CREATE UNIQUE INDEX authors_ind_1
+  ON authors (first_name, second_name)
+  WHERE company_name IS NULL;
+CREATE UNIQUE INDEX authors_ind_2
+  ON authors (company_name)
+  WHERE company_name IS NOT NULL;
+--------------------------------
+
+CREATE TRIGGER rank_setter
+AFTER INSERT OR UPDATE ON orders_details
+FOR EACH ROW EXECUTE PROCEDURE set_rank();
+
+CREATE TRIGGER discounter
+BEFORE INSERT OR UPDATE ON orders
+FOR EACH ROW EXECUTE PROCEDURE give_discount();
+
+CREATE TRIGGER isbn_ckeck
+BEFORE INSERT OR UPDATE ON books
+FOR EACH ROW EXECUTE PROCEDURE is_isbn();
+
+CREATE TRIGGER phonenumber_check_customers
+BEFORE INSERT OR UPDATE ON shippers
+FOR EACH ROW EXECUTE PROCEDURE is_phonenumber();
+
+CREATE TRIGGER phonenumber_check_shippers
+BEFORE INSERT OR UPDATE ON shippers
+FOR EACH ROW EXECUTE PROCEDURE is_phonenumber();
+
+CREATE TRIGGER hasbook_check
+BEFORE INSERT OR UPDATE ON reviews
+FOR EACH ROW EXECUTE PROCEDURE has_bought();
+
+CREATE TRIGGER available_check
+BEFORE INSERT OR UPDATE ON orders_details
+FOR EACH ROW EXECUTE PROCEDURE is_available();
+-----------------------------------------------
+CREATE OR REPLACE VIEW book_adder AS (
+  SELECT
+    books.isbn,
+    books.title,
+    books.publication_date,
+    books.edition,
+    books.available_quantity,
+    books.price,
+    authors.first_name,
+    authors.second_name,
+    authors.company_name,
+    publishers.name AS publisher
+  FROM books
+    JOIN authors ON books.author = authors.id
+    JOIN publishers ON books.publisher = publishers.id
+  WHERE 1 = 0);
+
+CREATE OR REPLACE VIEW books_rank AS (
+  SELECT
+    isbn,
+    title,
+    rate,
+    sold,
+    array(SELECT DISTINCT name
+          FROM books_genres
+            JOIN genres ON books_genres.genre_id = genres.id
+          WHERE book_id LIKE isbn) AS genres
+  FROM (SELECT
+          books.isbn                   AS isbn,
+          title                        AS title,
+          avg(review) :: NUMERIC(4, 2) AS rate,
+          sum(s.sold)                  AS sold
+        FROM books
+          JOIN reviews ON books.isbn = reviews.book_id
+          JOIN (SELECT
+                  isbn,
+                  coalesce(sum(amount), 0) AS sold
+                FROM books
+                  LEFT JOIN orders_details ON books.isbn = orders_details.book_id
+                GROUP BY isbn) AS s ON s.isbn LIKE books.isbn
+        GROUP BY books.isbn) AS o
+  ORDER BY sold DESC, rate DESC
+);
+
+-------------------------------------------------------------
+
+
+CREATE RULE checkdate AS ON INSERT TO reviews DO ALSO (
+  DELETE FROM reviews
+  WHERE date > now() AND customer_id = new.customer_id AND book_id = new.book_id;
+);
+
+CREATE RULE adder AS ON INSERT TO book_adder DO INSTEAD (
+  INSERT INTO authors (first_name, second_name, company_name)
+  VALUES (new.first_name, new.second_name, new.company_name)
+  ON CONFLICT DO NOTHING;
+  INSERT INTO publishers (name) VALUES (new.publisher)
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO books (isbn, title, publication_date, edition, available_quantity, price, publisher)
+  VALUES (new.isbn, new.title, new.publication_date, new.edition, new.available_quantity, new.price,
+          (SELECT id
+           FROM authors
+           WHERE (authors.first_name LIKE new.first_name AND authors.second_name LIKE new.second_name) OR
+                 authors.company_name LIKE new.company_name
+           LIMIT 1),
+          (SELECT id
+           FROM publishers
+           WHERE name LIKE new.publisher
+           LIMIT 1));
