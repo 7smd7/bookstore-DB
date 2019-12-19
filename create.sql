@@ -62,13 +62,14 @@ CREATE FUNCTION is_phonenumber()
   RETURNS TRIGGER AS $$
 DECLARE tmp NUMERIC;
 BEGIN
-  IF (length(new.phone_number) != 9)
-  THEN RAISE EXCEPTION 'INVALID PHONE NUMBER'; END IF;
+  IF (length(new.phone_number) != 11)
+    THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
+  END IF;
   tmp = new.phone_number :: NUMERIC;
   RETURN new;
   EXCEPTION WHEN OTHERS
   THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
-    RETURN new;
+  RETURN new;
 END; $$LANGUAGE plpgsql;
 
 
@@ -112,35 +113,7 @@ BEGIN
     RETURN NEW;
   END IF;
   RAISE EXCEPTION 'INVALID ISBN';
-END: $$
-
-
-CREATE FUNCTION is_nip()
-  RETURNS TRIGGER AS $$
-DECLARE
-  tmp NUMERIC DEFAULT 11;
-BEGIN
-  IF (length(new.nip) = 0)
-  THEN new.nip = NULL;
-    RETURN new; END IF;
-  IF (length(new.nip) = 10)
-  THEN tmp = ((substr(NEW.nip, 1, 1) :: NUMERIC * 6 +
-               substr(new.nip, 2, 1) :: NUMERIC * 5 +
-               substr(NEW.nip, 3, 1) :: NUMERIC * 7 +
-               substr(NEW.nip, 4, 1) :: NUMERIC * 2 +
-               substr(NEW.nip, 5, 1) :: NUMERIC * 3 +
-               substr(NEW.nip, 6, 1) :: NUMERIC * 4 +
-               substr(NEW.nip, 7, 1) :: NUMERIC * 5 +
-               substr(NEW.nip, 8, 1) :: NUMERIC * 6 +
-               substr(NEW.nip, 9, 1) :: NUMERIC * 7)
-              % 11);
-  END IF;
-  IF tmp != substr(NEW.nip, 10, 1) :: NUMERIC
-  THEN
-    RAISE EXCEPTION 'INVALID NIP';
-  END IF;
-  RETURN new;
-END; $$LANGUAGE plpgsql;
+END; $$ LANGUAGE plpgsql;
 
 
 CREATE FUNCTION set_rank()
@@ -155,7 +128,7 @@ BEGIN
               FROM orders
               WHERE id = new.order_id);
 
-  quantity = (SELECT coalesce(sum(orders_details.amount), 0)
+  quantity = (SELECT coalesce(sum(orders_details.amount), 0) --WTF coalesce
               FROM orders
                 LEFT JOIN orders_details ON orders.id = orders_details.order_id
               WHERE orders.customer_id = customer
@@ -212,7 +185,7 @@ BEGIN
   IF new.amount > (SELECT books.available_quantity
                    FROM books
                    WHERE new.book_id = books.isbn
-                   LIMIT 1)
+                   LIMIT 1) ---??WTF limit
   THEN
     RAISE EXCEPTION 'NOT AVAILABLE';
   END IF;
