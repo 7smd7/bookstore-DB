@@ -1,3 +1,6 @@
+-------------------------------------------------
+----- Drop table, view, function and rule -------
+-------------------------------------------------
 DROP TABLE IF EXISTS rates CASCADE;
 DROP TABLE IF EXISTS books CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
@@ -29,8 +32,14 @@ DROP VIEW IF EXISTS books_rank;
 -------------------------------------------------
 DROP RULE IF EXISTS adder
 ON book_adder;
--------------------------------------------------
 
+-------------------------------------------------
+------------- Function of trigger----------------
+-------------------------------------------------
+-- After, on reviews: check that the costumer has bought the book that have review.
+-- should copy from bottom func
+
+-- After, on reviews: check that the costumer has bought the book that have rated.
 CREATE FUNCTION has_bought()
   RETURNS TRIGGER AS $$
 BEGIN
@@ -40,18 +49,18 @@ BEGIN
       WHERE customer_id = new.customer_id AND book_id LIKE new.book_id) = 0
   THEN RAISE EXCEPTION 'CUSTOMER HAS NOT BOUGHT THIS BOOK'; END IF;
 
---   IF (SELECT count(book_id)
---       FROM reviews
---       WHERE
---         book_id LIKE new.book_id AND customer_id = new.customer_id) > 0
---   THEN
---     DELETE FROM reviews
---     WHERE customer_id = NEW.customer_id AND book_id LIKE NEW.book_id; ------WTF??
---   END IF;
+  IF (SELECT count(book_id)
+      FROM rates
+      WHERE
+        book_id LIKE new.book_id AND customer_id = new.customer_id) > 0
+  THEN
+    DELETE FROM rates
+    WHERE customer_id = NEW.customer_id AND book_id LIKE NEW.book_id;
+  END IF;
   RETURN new;
 END; $$LANGUAGE plpgsql;
 
-
+-- Before, on orders: give the max(discount) for give costumer discount in new order.
 CREATE FUNCTION give_discount()
   RETURNS TRIGGER AS $$
 DECLARE id  BIGINT DEFAULT NULL;
@@ -69,7 +78,7 @@ BEGIN
   RETURN new;
 END; $$LANGUAGE plpgsql;
 
-
+-- Before, on shipper and costumer: validate phone number.
 CREATE FUNCTION is_phonenumber()
   RETURNS TRIGGER AS $$
 DECLARE tmp NUMERIC;
@@ -77,14 +86,16 @@ BEGIN
   IF (length(new.phone_number) != 11)
     THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
   END IF;
+  -- WTF!!!
   tmp = new.phone_number :: NUMERIC;
   RETURN new;
   EXCEPTION WHEN OTHERS
   THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
   RETURN new;
+  -- WTF!!!
 END; $$LANGUAGE plpgsql;
 
-
+-- Before, on book: validate ISBN.
 CREATE FUNCTION is_isbn()
   RETURNS TRIGGER AS $$
 DECLARE tmp NUMERIC DEFAULT 11;
@@ -127,7 +138,7 @@ BEGIN
   RAISE EXCEPTION 'INVALID ISBN';
 END; $$ LANGUAGE plpgsql;
 
-
+-- Before, on order details: Check how much costumer of new order have bought, So give to costumer discount for next order.
 CREATE FUNCTION set_rank()
   RETURNS TRIGGER AS $$
 DECLARE
@@ -140,7 +151,7 @@ BEGIN
               FROM orders
               WHERE id = new.order_id);
 
-  quantity = (SELECT coalesce(sum(orders_details.amount), 0) --WTF coalesce
+  quantity = (SELECT coalesce(sum(orders_details.amount), 0)
               FROM orders
                 LEFT JOIN orders_details ON orders.id = orders_details.order_id
               WHERE orders.customer_id = customer
@@ -186,7 +197,7 @@ BEGIN
   RETURN new;
 END; $$LANGUAGE plpgsql;
 
-
+-- Before, on order details: Check that is available the amount of books that costumer ordered.
 CREATE FUNCTION is_available()
   RETURNS TRIGGER AS $$
 BEGIN
@@ -204,9 +215,9 @@ BEGIN
   RETURN new;
 END; $$LANGUAGE plpgsql;
 
-
 -------------------------------------------------
-
+---------------- Create table -------------------
+-------------------------------------------------
 CREATE TABLE authors (
   id           SERIAL PRIMARY KEY,
   first_name   VARCHAR(100),
@@ -330,16 +341,19 @@ CREATE TABLE rates (
   date        DATE DEFAULT now()
 );
 
----------------------------------------------------------------
-
+-------------------------------------------------
+------------ Create unique index ----------------
+-------------------------------------------------
 CREATE UNIQUE INDEX authors_ind_1
   ON authors (first_name, second_name)
   WHERE company_name IS NULL;
 CREATE UNIQUE INDEX authors_ind_2
   ON authors (company_name)
   WHERE company_name IS NOT NULL;
---------------------------------
 
+-------------------------------------------------
+--------------- Create trigger ------------------
+-------------------------------------------------
 CREATE TRIGGER rank_setter
 AFTER INSERT OR UPDATE ON orders_details
 FOR EACH ROW EXECUTE PROCEDURE set_rank();
@@ -348,7 +362,7 @@ CREATE TRIGGER discounter
 BEFORE INSERT OR UPDATE ON orders
 FOR EACH ROW EXECUTE PROCEDURE give_discount();
 
-CREATE TRIGGER isbn_ckeck
+CREATE TRIGGER isbn_check
 BEFORE INSERT OR UPDATE ON books
 FOR EACH ROW EXECUTE PROCEDURE is_isbn();
 
@@ -361,14 +375,18 @@ BEFORE INSERT OR UPDATE ON shippers
 FOR EACH ROW EXECUTE PROCEDURE is_phonenumber();
 
 CREATE TRIGGER hasbook_check
-BEFORE INSERT OR UPDATE ON reviews
+BEFORE INSERT OR UPDATE ON rates
 FOR EACH ROW EXECUTE PROCEDURE has_bought();
 
 CREATE TRIGGER available_check
 BEFORE INSERT OR UPDATE ON orders_details
 FOR EACH ROW EXECUTE PROCEDURE is_available();
------------------------------------------------
-CREATE OR REPLACE VIEW book_adder AS (
+
+
+-------------------------------------------------
+---------------- Create View --------------------
+-------------------------------------------------
+CREATE VIEW book_adder AS (
   SELECT
     books.isbn,
     books.title,
@@ -385,7 +403,7 @@ CREATE OR REPLACE VIEW book_adder AS (
     JOIN publishers ON books.publisher = publishers.id
   WHERE 1 = 0);
 
-CREATE OR REPLACE VIEW books_rank AS (
+CREATE VIEW books_rank AS (
   SELECT
     isbn,
     title,
@@ -412,9 +430,9 @@ CREATE OR REPLACE VIEW books_rank AS (
   ORDER BY sold DESC, rate DESC
 );
 
--------------------------------------------------------------
-
-
+-------------------------------------------------
+----------------- Create rule -------------------
+-------------------------------------------------
 CREATE RULE checkdate AS ON INSERT TO reviews DO ALSO (
   DELETE FROM reviews
   WHERE date > now() AND customer_id = new.customer_id AND book_id = new.book_id;
