@@ -330,7 +330,7 @@ CREATE TABLE reviews (
   book_id     VARCHAR NOT NULL REFERENCES books (isbn) ,
   customer_id BIGINT  NOT NULL REFERENCES customers (id) ,
   review      VARCHAR(1000)  NOT NULL ,
-  date        DATE 
+  date        DATE DEFAULT now() CHECK (date <= now())
 );
 
 CREATE TABLE rates (
@@ -338,7 +338,7 @@ CREATE TABLE rates (
   book_id     VARCHAR NOT NULL REFERENCES books (isbn) ON DELETE CASCADE,
   customer_id BIGINT  NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
   rates       INTEGER CHECK (rates BETWEEN 0 AND 10),
-  date        DATE DEFAULT now()
+  date        DATE DEFAULT now() CHECK (date <= now())
 );
 
 -------------------------------------------------
@@ -394,14 +394,17 @@ CREATE VIEW book_adder AS (
     books.edition,
     books.available_quantity,
     books.price,
-    authors.first_name,
-    authors.second_name,
-    authors.company_name,
+    array(SELECT authors.first_name,
+        authors.second_name,
+        authors.company_name
+        FROM books
+        JOIN books_authors ON books_authors.book_id = books.isbn
+        JOIN authors ON books_authors.author_id = authors.id) as author,
     publishers.name AS publisher
   FROM books
-    JOIN authors ON books.author = authors.id
     JOIN publishers ON books.publisher = publishers.id
-  WHERE 1 = 0);
+  --WTF: WHERE 1 = 0
+);
 
 CREATE VIEW books_rank AS (
   SELECT
@@ -416,10 +419,10 @@ CREATE VIEW books_rank AS (
   FROM (SELECT
           books.isbn                   AS isbn,
           title                        AS title,
-          avg(review) :: NUMERIC(4, 2) AS rate,
+          avg(rates.rates) :: NUMERIC(4, 2) AS rate,
           sum(s.sold)                  AS sold
         FROM books
-          JOIN reviews ON books.isbn = reviews.book_id
+          JOIN rates ON books.isbn = rates.book_id
           JOIN (SELECT
                   isbn,
                   coalesce(sum(amount), 0) AS sold
@@ -433,15 +436,11 @@ CREATE VIEW books_rank AS (
 -------------------------------------------------
 ----------------- Create rule -------------------
 -------------------------------------------------
-CREATE RULE checkdate AS ON INSERT TO reviews DO ALSO (
-  DELETE FROM reviews
-  WHERE date > now() AND customer_id = new.customer_id AND book_id = new.book_id;
-);
-
 CREATE RULE adder AS ON INSERT TO book_adder DO INSTEAD (
   INSERT INTO authors (first_name, second_name, company_name)
   VALUES (new.first_name, new.second_name, new.company_name)
   ON CONFLICT DO NOTHING;
+
   INSERT INTO publishers (name) VALUES (new.publisher)
   ON CONFLICT DO NOTHING;
 
@@ -456,3 +455,4 @@ CREATE RULE adder AS ON INSERT TO book_adder DO INSTEAD (
            FROM publishers
            WHERE name LIKE new.publisher
            LIMIT 1));
+);
