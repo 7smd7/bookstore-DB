@@ -438,7 +438,7 @@ CREATE VIEW books_rank AS (
 -------------------------------------------------
 CREATE RULE adder AS ON INSERT TO book_adder DO INSTEAD (
   INSERT INTO authors (first_name, second_name, company_name)
-  VALUES (new.first_name, new.second_name, new.company_name)
+  VALUES (new.author)
   ON CONFLICT DO NOTHING;
 
   INSERT INTO publishers (name) VALUES (new.publisher)
