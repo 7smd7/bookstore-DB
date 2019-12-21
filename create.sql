@@ -267,7 +267,7 @@ CREATE TABLE customers (
   last_name    VARCHAR(100)        NOT NULL,
   login        VARCHAR(100) UNIQUE NOT NULL,
   passwordHash VARCHAR(100)                ,
-  phone_number VARCHAR(9)
+  phone_number VARCHAR(11)
 );
 
 CREATE TABLE addresses (
@@ -436,6 +436,7 @@ CREATE VIEW books_rank AS (
 -------------------------------------------------
 ----------------- Create rule -------------------
 -------------------------------------------------
+--WTF working with array
 CREATE RULE adder AS ON INSERT TO book_adder DO INSTEAD (
   INSERT INTO authors (first_name, second_name, company_name)
   VALUES (new.author)
