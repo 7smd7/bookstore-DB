@@ -36,32 +36,41 @@ ON book_adder;
 -------------------------------------------------
 ------------- Function of trigger----------------
 -------------------------------------------------
--- After, on reviews: check that the costumer has bought the book that have review.
--- should copy from bottom func
-
--- After, on reviews: check that the costumer has bought the book that have rated.
-CREATE FUNCTION has_bought()
+-- Before, on reviews: check that the costumer has bought the book that have review.
+CREATE OR REPLACE FUNCTION has_bought()
   RETURNS TRIGGER AS $$
 BEGIN
   IF (SELECT count(book_id) AS a
       FROM orders_details
         JOIN orders ON orders_details.order_id = orders.id
-      WHERE customer_id = new.customer_id AND book_id LIKE new.book_id) = 0
+      WHERE customer_id = new.customer_id AND book_id = new.book_id) = 0
+  THEN RAISE EXCEPTION 'CUSTOMER HAS NOT BOUGHT THIS BOOK'; END IF;
+  RETURN new;
+END; $$LANGUAGE plpgsql;
+
+-- Before, on rates: check that the costumer has bought the book that have rated.
+CREATE OR REPLACE FUNCTION has_bought_rates()
+  RETURNS TRIGGER AS $$
+BEGIN
+  IF (SELECT count(book_id) AS a
+      FROM orders_details
+        JOIN orders ON orders_details.order_id = orders.id
+      WHERE customer_id = new.customer_id AND book_id = new.book_id) = 0
   THEN RAISE EXCEPTION 'CUSTOMER HAS NOT BOUGHT THIS BOOK'; END IF;
 
   IF (SELECT count(book_id)
       FROM rates
       WHERE
-        book_id LIKE new.book_id AND customer_id = new.customer_id) > 0
+        book_id = new.book_id AND customer_id = new.customer_id) > 0
   THEN
     DELETE FROM rates
-    WHERE customer_id = NEW.customer_id AND book_id LIKE NEW.book_id;
+    WHERE customer_id = NEW.customer_id AND book_id = NEW.book_id;
   END IF;
   RETURN new;
 END; $$LANGUAGE plpgsql;
 
 -- Before, on orders: give the max(discount) for give costumer discount in new order.
-CREATE FUNCTION give_discount()
+CREATE OR REPLACE FUNCTION give_discount()
   RETURNS TRIGGER AS $$
 DECLARE id  BIGINT DEFAULT NULL;
         val NUMERIC DEFAULT NULL;
@@ -79,27 +88,28 @@ BEGIN
 END; $$LANGUAGE plpgsql;
 
 -- Before, on shipper and costumer: validate phone number.
-CREATE FUNCTION is_phonenumber()
+CREATE OR REPLACE FUNCTION is_phonenumber()
   RETURNS TRIGGER AS $$
-DECLARE tmp NUMERIC;
+DECLARE
+    tmp NUMERIC;
 BEGIN
   IF (length(new.phone_number) != 11)
-    THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
+    THEN RAISE EXCEPTION 'INVALID PHONE NUMBER: length';
   END IF;
-  -- WTF!!!
   tmp = new.phone_number :: NUMERIC;
   RETURN new;
-  EXCEPTION WHEN OTHERS
-  THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
-  RETURN new;
-  -- WTF!!!
+  EXCEPTION WHEN invalid_text_representation
+  THEN RAISE EXCEPTION 'INVALID PHONE NUMBER: not numeric';
 END; $$LANGUAGE plpgsql;
 
 -- Before, on book: validate ISBN.
-CREATE FUNCTION is_isbn()
+--https://en.wikipedia.org/wiki/International_Standard_Book_Number#ISBN-10_check_digit_calculation
+CREATE OR REPLACE FUNCTION is_isbn()
   RETURNS TRIGGER AS $$
 DECLARE tmp NUMERIC DEFAULT 11;
 BEGIN
+  --isbn10 format: x-xxx-xxxxx-x
+  -- tmp is 11-remainder, so last char should equal tmp
   IF (length(new.isbn) = 13)
   THEN tmp = (11 - (
                      substr(NEW.isbn, 1, 1) :: NUMERIC * 10 +
@@ -113,6 +123,8 @@ BEGIN
                      substr(NEW.isbn, 11, 1) :: NUMERIC * 2)
                    % 11) % 11;
   END IF;
+
+  --isbn13 format: xxx-xx-xxxxx-xx-x
   IF ((length(NEW.isbn) = 17
        AND (
              substr(NEW.isbn, 1, 1) :: NUMERIC +
@@ -138,8 +150,8 @@ BEGIN
   RAISE EXCEPTION 'INVALID ISBN';
 END; $$ LANGUAGE plpgsql;
 
--- Before, on order details: Check how much costumer of new order have bought, So give to costumer discount for next order.
-CREATE FUNCTION set_rank()
+-- After, on order details: Check how much costumer of new order have bought, So give to costumer discount for next order.
+CREATE OR REPLACE FUNCTION set_rank()
   RETURNS TRIGGER AS $$
 DECLARE
   val      NUMERIC DEFAULT 0;
@@ -198,7 +210,7 @@ BEGIN
 END; $$LANGUAGE plpgsql;
 
 -- Before, on order details: Check that is available the amount of books that costumer ordered.
-CREATE FUNCTION is_available()
+CREATE OR REPLACE FUNCTION is_available()
   RETURNS TRIGGER AS $$
 BEGIN
   IF new.amount <= 0
@@ -286,11 +298,10 @@ CREATE TABLE customers_addresses (
   PRIMARY KEY (customers_id, addresses_id)
 );
 
-
 CREATE TABLE shippers (
   id           SERIAL PRIMARY KEY,
   name         VARCHAR(100) NOT NULL,
-  phone_number VARCHAR(9)
+  phone_number VARCHAR(11)
 );
 
 CREATE TABLE discounts (
@@ -376,6 +387,10 @@ FOR EACH ROW EXECUTE PROCEDURE is_phonenumber();
 
 CREATE TRIGGER hasbook_check
 BEFORE INSERT OR UPDATE ON rates
+FOR EACH ROW EXECUTE PROCEDURE has_bought_rates();
+
+CREATE TRIGGER hasbook_check
+BEFORE INSERT OR UPDATE ON reviews
 FOR EACH ROW EXECUTE PROCEDURE has_bought();
 
 CREATE TRIGGER available_check
