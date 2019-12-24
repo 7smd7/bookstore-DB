@@ -29,7 +29,7 @@ DROP FUNCTION IF EXISTS is_isbn();
 -------------------------------------------------
 DROP VIEW IF EXISTS book_adder;
 DROP VIEW IF EXISTS books_rank;
--------------------------------------------------
+--------------------------------f-----------------
 DROP RULE IF EXISTS adder
 ON book_adder;
 
@@ -82,17 +82,12 @@ END; $$LANGUAGE plpgsql;
 CREATE FUNCTION is_phonenumber()
   RETURNS TRIGGER AS $$
 DECLARE tmp NUMERIC;
+  RETURN new;  
 BEGIN
-  IF (length(new.phone_number) != 11)
-    THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
-  END IF;
-  -- WTF!!!
-  tmp = new.phone_number :: NUMERIC;
-  RETURN new;
-  EXCEPTION WHEN OTHERS
+ EXCEPTION WHEN OTHERS
   THEN RAISE EXCEPTION 'INVALID PHONE NUMBER';
-  RETURN new;
-  -- WTF!!!
+ 
+  -- TO-DO!!!
 END; $$LANGUAGE plpgsql;
 
 -- Before, on book: validate ISBN.
@@ -112,6 +107,7 @@ BEGIN
                      substr(NEW.isbn, 10, 1) :: NUMERIC * 3 +
                      substr(NEW.isbn, 11, 1) :: NUMERIC * 2)
                    % 11) % 11;
+                   
   END IF;
   IF ((length(NEW.isbn) = 17
        AND (
@@ -129,7 +125,8 @@ BEGIN
              substr(NEW.isbn, 15, 1) :: NUMERIC * 3)
            % 10 = substr(NEW.isbn, 17, 1) :: NUMERIC)
       OR (length(new.isbn) = 13
-          AND ((tmp = 10 AND substr(new.isbn, 13, 1) = 'X')
+          AND ((tmp = 10 --AND substr(new.isbn, 13, 1) = 'X'
+          )
                OR tmp = substr(NEW.isbn, 13, 1) :: NUMERIC))
   )
   THEN
@@ -226,17 +223,67 @@ CREATE TABLE authors (
   CHECK ((first_name IS NOT NULL AND second_name IS NOT NULL)
         OR company_name IS NOT NULL)
 );
+-- myinsert
+/*
+CREATE TABLE rates (
+  id          SERIAL PRIMARY KEY,
+  book_id     VARCHAR NOT NULL REFERENCES books (isbn) ON DELETE CASCADE,
+  customer_id BIGINT  NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
+  rate    INTEGER CHECK (rate BETWEEN 0 AND 10),
+  date        DATE DEFAULT now() CHECK (date <= now())
+);
+CREATE TABLE orders (
+  id          SERIAL PRIMARY KEY,
+  customer_id SERIAL NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
+  date        DATE DEFAULT now() CHECK (date <= now()),
+  discount_id BIGINT REFERENCES discounts (id) ON DELETE CASCADE,
+  shipper     BIGINT NOT NULL REFERENCES shippers (id) ON DELETE CASCADE,
+  state       VARCHAR DEFAULT 'AWAITING'
+    CHECK (state = 'AWAITING' OR state = 'PAID' OR state = 'SENT')
+);
+CREATE TABLE discounts (
+  id    SERIAL PRIMARY KEY,
+  name  VARCHAR(100),
+  value NUMERIC(2, 2) DEFAULT 0 CHECK (value >= 0.00 AND value <= 1.00)
+);
+
+CREATE TABLE shippers (
+  id           SERIAL PRIMARY KEY,
+  name         VARCHAR(100) NOT NULL,
+  phone_number VARCHAR(9)
+);
+*/
+insert into authors values ( '1234' , 'ali' , 'gholami' , 'intel');
+insert into genres values ('1234' , 'science-fiction');
+insert into publishers values ('1245' , 'ieee');
+insert into books values ('0521570956' , 'guide to fuck os' , '2018/4/2' , 1 , 2 , 2000 ,'1245');
+insert into customers values ('12' , 'ali' , 'gholami' , 'xerex' , 'fuck' , '123456789');
+insert into books_authors values ( '0521570956'  , '1234');
+insert into books values ('125019668X' , 'guide to fuck compiler' , '2018/4/2' , 1 , 2 , 2000 ,'1245');
+insert into rates values ( '12' , '125019668X' , '12' , '9' , '2018/4/3' ) ;
+insert into discounts values ( '1' , 'awe' , 0.7);
+insert into shippers values  ('13' , 'gholi' , '123456789');
+insert into orders values ('13' , '12' , '2018/3/3' , '1' , '13' ,  'PAID');
 
 CREATE TABLE genres (
   id   SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL
 );
 
+
 CREATE TABLE publishers (
   id   SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL
 );
-
+/*
+CREATE TABLE rates (
+  id          SERIAL PRIMARY KEY,
+  book_id     VARCHAR NOT NULL REFERENCES books (isbn) ON DELETE CASCADE,
+  customer_id BIGINT  NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
+  rate    INTEGER CHECK (rate BETWEEN 0 AND 10),
+  date        DATE DEFAULT now() CHECK (date <= now())
+);
+*/
 CREATE TABLE books (
   --isbn13 format: xxx-xx-xxxxx-xx-x
   --isbn10 format: x-xxx-xxxxx-x
@@ -246,8 +293,26 @@ CREATE TABLE books (
   edition            INT,
   available_quantity INT  NOT NULL DEFAULT 0 CHECK (available_quantity >= 0),
   price              NUMERIC(6, 2) CHECK (price > 0),
-  publisher          SERIAL REFERENCES publishers (id) ON DELETE CASCADE 
+  publisher          SERIAL REFERENCES publishers (id) ON DELETE CASCADE ,
+  avg_rate           numeric(4,2)
 );
+
+CREATE FUNCTION has_rated()
+  RETURNS TRIGGER AS $$
+BEGIN
+    DELETE FROM rates
+    WHERE customer_id = NEW.customer_id AND book_id LIKE NEW.book_id;
+    update books
+    SET books.avg_rate = avg(rates.rate);
+  RETURN new;
+END; $$LANGUAGE plpgsql;
+
+
+
+
+
+
+
 
 CREATE TABLE books_authors (
   book_id    VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
@@ -269,7 +334,7 @@ CREATE TABLE customers (
   passwordHash VARCHAR(100)                ,
   phone_number VARCHAR(11)
 );
-
+ 
 CREATE TABLE addresses (
   id           SERIAL PRIMARY KEY,
   postal_code  VARCHAR(6)          NOT NULL,
@@ -337,7 +402,7 @@ CREATE TABLE rates (
   id          SERIAL PRIMARY KEY,
   book_id     VARCHAR NOT NULL REFERENCES books (isbn) ON DELETE CASCADE,
   customer_id BIGINT  NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
-  rates       INTEGER CHECK (rates BETWEEN 0 AND 10),
+  rate    INTEGER CHECK (rate BETWEEN 0 AND 10),
   date        DATE DEFAULT now() CHECK (date <= now())
 );
 
@@ -378,6 +443,10 @@ CREATE TRIGGER hasbook_check
 BEFORE INSERT OR UPDATE ON rates
 FOR EACH ROW EXECUTE PROCEDURE has_bought();
 
+CREATE TRIGGER HASRATED_CHECK
+BEFORE INSERT OR UPDATE ON rates
+FOR EACH ROW EXECUTE PROCEDURE has_rated();
+
 CREATE TRIGGER available_check
 BEFORE INSERT OR UPDATE ON orders_details
 FOR EACH ROW EXECUTE PROCEDURE is_available();
@@ -399,12 +468,13 @@ CREATE VIEW book_adder AS (
         authors.company_name
         FROM books
         JOIN books_authors ON books_authors.book_id = books.isbn
-        JOIN authors ON books_authors.author_id = authors.id) as author,
+        JOIN authors ON books_authors.author_id = authors.id  limit 1) as author ,
     publishers.name AS publisher
   FROM books
-    JOIN publishers ON books.publisher = publishers.id
-  --WTF: WHERE 1 = 0
-);
+    JOIN publishers ON books.publisher = publishers.id  
+  --TO-DO: WHERE 1 = 0
+) limit 1;
+ 
 
 CREATE VIEW books_rank AS (
   SELECT
@@ -436,7 +506,7 @@ CREATE VIEW books_rank AS (
 -------------------------------------------------
 ----------------- Create rule -------------------
 -------------------------------------------------
---WTF working with array
+--TO-DO working with array
 CREATE RULE adder AS ON INSERT TO book_adder DO INSTEAD (
   INSERT INTO authors (first_name, second_name, company_name)
   VALUES (new.author)
