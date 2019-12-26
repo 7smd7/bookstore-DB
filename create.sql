@@ -1,43 +1,3 @@
--- myinsert
-/*
-CREATE TABLE rates (
-  id          SERIAL PRIMARY KEY,
-  book_id     VARCHAR NOT NULL REFERENCES books (isbn) ON DELETE CASCADE,
-  customer_id BIGINT  NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
-  rate    INTEGER CHECK (rate BETWEEN 0 AND 10),
-  date        DATE DEFAULT now() CHECK (date <= now())
-);
-CREATE TABLE orders (
-  id          SERIAL PRIMARY KEY,
-  customer_id SERIAL NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
-  date        DATE DEFAULT now() CHECK (date <= now()),
-  discount_id BIGINT REFERENCES discounts (id) ON DELETE CASCADE,
-  shipper     BIGINT NOT NULL REFERENCES shippers (id) ON DELETE CASCADE,
-  state       VARCHAR DEFAULT 'AWAITING'
-    CHECK (state = 'AWAITING' OR state = 'PAID' OR state = 'SENT'),
-  reference_code char(16) not null,
-  address_id integer not null,
-  foreign key (customer_id , address_id)  REFERENCES customers_addresses(customers_id , addresses_id)
-);
-
-CREATE TABLE discounts (
-  id    SERIAL PRIMARY KEY,
-  name  VARCHAR(100),
-  value NUMERIC(2, 2) DEFAULT 0 CHECK (value >= 0.00 AND value <= 1.00)
-);
-
-CREATE TABLE shippers (
-  id           SERIAL PRIMARY KEY,
-  name         VARCHAR(100) NOT NULL,
-  phone_number VARCHAR(9)
-);
-CREATE TABLE orders_details (
-  book_id  VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
-  order_id BIGINT NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
-  amount   INTEGER CHECK (amount > 0)
-);
-*/
---isbn10 format: x-xxx-xxxxx-x
 insert into authors values ( '1234' , 'ali' , 'gholami' , 'intel');
 insert into authors values ( '1233' , 'Hesam' , 'gholami' , 'AMD');
 insert into genres values (default , 'computer science');
@@ -57,6 +17,7 @@ insert into addresses values (default , 'kk' , 'ii' , 'ii' , 'oo' , 'oo');
 insert into customers_addresses values ( 12, 1);
 insert into books_genres values ('0-521-57095-6' , '1');
 insert into books_authors values ('0-521-57095-6' , 1234);
+
 -------------------------------------------------
 ----- Drop table, view, function and rule -------
 -------------------------------------------------
@@ -78,6 +39,8 @@ DROP TABLE IF EXISTS orders_details CASCADE;
 DROP TABLE IF EXISTS books_discounts CASCADE;
 DROP TABLE IF EXISTS customers_addresses CASCADE;
 DROP TABLE IF EXISTS customers_discounts CASCADE;
+DROP TABLE IF EXISTS sellers CASCADE;
+DROP TABLE IF EXISTS sellers_addresses CASCADE;
 -------------------------------------------------
 DROP FUNCTION IF EXISTS is_phonenumber();
 DROP FUNCTION IF EXISTS give_discount();
