@@ -8,7 +8,7 @@ insert into books_authors values ( '1-447-12735-8'  , '1233');
 insert into books values (default , '1-447-12735-8' , 'How to build a compiler' , '2018/4/2' , 1 , 2 , 2000 ,'1245');
 insert into books values (default , '0-521-57095-6' , 'How to build a parser' , '2018/9/2' , 1 , 2 , 2000 ,'1245');
 insert into orders values (default , '12' , '2019/4/3' , 1 , 13 , 'AWAITING' , 'abcdefghioukiopo' , 1);
-insert into orders_details values ('0-521-57095-6' , '14' , 1);
+insert into orders_details values ('1-447-12735-8' , '14' , 1);
 insert into orders values (default , 12 , '2018/3/4' , 1 , 13 , default , '1111111111111111' , 1);
 insert into rates values ( '12' , '0-521-57095-6' , '12' , '3' , '2018/4/3' ) ;
 insert into discounts values ( 1 , 'awe' , 0.7);
@@ -17,6 +17,8 @@ insert into addresses values (default , 'kk' , 'ii' , 'ii' , 'oo' , 'oo');
 insert into customers_addresses values ( 12, 1);
 insert into books_genres values ('0-521-57095-6' , '1');
 insert into books_authors values ('0-521-57095-6' , 1234);
+select * from orders;
+insert into orders_details values ('1-447-12735-8' , '15' ,  34);
 
 -------------------------------------------------
 ----- Drop table, view, function and rule -------
@@ -249,16 +251,33 @@ BEGIN
 END; $$LANGUAGE plpgsql;
 
 -- Before, on order details: Check that is available the amount of books that costumer ordered.
+
+CREATE OR REPLACE FUNCTION is_paid()
+RETURNS TRIGGER AS $$
+DECLARE new_amount integer ;
+BEGIN
+  IF((select state from orders where new.order_id = id ) = 'PAID')
+  THEN
+  new_amount = (SELECT books.available_quantity
+                   FROM books
+                   WHERE new.book_id = books.isbn
+                   LIMIT 1) - new.amount;
+            UPDATE books
+      
+            set available_quantity = new_amount WHERE isbn = new.book_id  ;
+  END IF;
+  RETURN new;
+END; $$LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION is_available()
   RETURNS TRIGGER AS $$
    DECLARE
    new_amount integer ;
 
-   --wtf
 BEGIN
   IF new.amount <= 0
   THEN
-      RAISE EXCEPTION 'NOT AVAILABLE';
+  return null;
   END IF;
   IF new.amount > (SELECT books.available_quantity
                    FROM books
@@ -267,13 +286,6 @@ BEGIN
   THEN
     RAISE EXCEPTION 'NOT AVAILABLE';
   END IF;
-  new_amount = (SELECT books.available_quantity
-                   FROM books
-                   WHERE new.book_id = books.isbn
-                   LIMIT 1) - new.amount;
-            UPDATE books
-      
-            set available_quantity = new_amount WHERE isbn = new.book_id;
   RETURN new;
 END; $$LANGUAGE plpgsql;
  
@@ -335,19 +347,20 @@ CREATE TABLE customers (
   passwordHash VARCHAR(100)                ,
   phone_number VARCHAR(11)
 );
+
 CREATE TABLE sellers (
   id  SERIAL PRIMARY KEY,
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
   login VARCHAR(100) UNIQUE NOT NULL,
   passwordHash    VARCHAR(100),
-  phone_number VARCHAR(11),
+  phone_number VARCHAR(11)
 );
 
 CREATE TABLE sellers_addresses (
-  addresses_id SERIAL REFERENCES addresses(id) ON DELETE CASCADE,
-  sellers_id SERIAL REFERENCES sellers(id) ON DELETE CASCADE,
-  PRIMARY KEY (sellers_id , addresses_id);
+  addresses_id INTEGER REFERENCES addresses(id) ON DELETE CASCADE,
+  sellers_id INTEGER REFERENCES sellers(id) ON DELETE CASCADE,
+  PRIMARY KEY (sellers_id , addresses_id)
 );
 
 CREATE TABLE addresses (
@@ -362,8 +375,8 @@ CREATE TABLE addresses (
  
 
 CREATE TABLE customers_addresses (
-  customers_id SERIAL REFERENCES customers (id) ON DELETE CASCADE ,
-  addresses_id SERIAL REFERENCES addresses (id) ON DELETE CASCADE ,
+  customers_id INTEGER REFERENCES customers (id) ON DELETE CASCADE ,
+  addresses_id INTEGER REFERENCES addresses (id) ON DELETE CASCADE ,
   PRIMARY KEY (customers_id, addresses_id)
 );
 
@@ -400,14 +413,12 @@ CREATE TABLE orders (
     CHECK (state = 'AWAITING' OR state = 'PAID' OR state = 'SENT'),
   reference_code char(16) not null,
   address_id integer not null,
+  total_price numeric(6,2), --wtf , will handle this later
   foreign key (customer_id , address_id)  REFERENCES customers_addresses(customers_id , addresses_id)
 );
-
-
-
-
+ 
 CREATE TABLE orders_details (
-  book_id  VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
+  book_id  VARCHAR REFERENCES books (isbn) ON DELETE CASCADE, 
   order_id BIGINT NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
   amount   INTEGER CHECK (amount > 0)
 );
@@ -478,11 +489,15 @@ CREATE TRIGGER available_check
 BEFORE INSERT OR UPDATE ON orders_details
 FOR EACH ROW EXECUTE PROCEDURE is_available();
 
-
+CREATE TRIGGER paid_check
+AFTER INSERT OR UPDATE ON orders_details
+FOR EACH ROW EXECUTE PROCEDURE is_paid();
 -------------------------------------------------
 ---------------- Create View --------------------
 -------------------------------------------------
 
+--under construction
+ 
 CREATE VIEW book_adder AS (
   SELECT
     books.isbn,
@@ -497,8 +512,11 @@ CREATE VIEW book_adder AS (
     JOIN publishers ON books.publisher = publishers.id join books_authors on books_authors.book_id = books.isbn
     join authors on books_authors.author_id = authors.id  order by books.id
 ) ;
- 
-CREATE VIEW books_rank AS (
+-- under construction
+/*
+when some book is not rated , it doesnt show up in books_rank
+*/
+CREATE OR REPLACE VIEW books_rank AS (
   SELECT
     isbn,
     title,
@@ -511,7 +529,7 @@ CREATE VIEW books_rank AS (
   FROM (SELECT
           books.isbn                   AS isbn,
           title                        AS title,
-          avg(rates.rate) :: NUMERIC(4, 2) AS rate,
+          avg(rates.rate) :: NUMERIC(4, 2) AS  rate,
           sum(s.sold)                  AS sold
         FROM books
           JOIN rates ON books.isbn = rates.book_id
@@ -524,7 +542,6 @@ CREATE VIEW books_rank AS (
         GROUP BY books.isbn) AS o
   ORDER BY sold DESC, rate DESC
 );
-
 
  
 -------------------------------------------------
