@@ -373,7 +373,7 @@ CREATE TABLE customers (
   phone_number VARCHAR(11)
 );
 CREATE TABLE sellers (
-  id SERIAL PRIMARY KEY,
+  id  SERIAL PRIMARY KEY,
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
   login VARCHAR(100) UNIQUE NOT NULL,
