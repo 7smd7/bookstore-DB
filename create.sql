@@ -8,8 +8,8 @@ insert into books_authors values ( '1-447-12735-8'  , '1233');
 insert into books values (default , '1-447-12735-8' , 'How to build a compiler' , '2018/4/2' , 1 , 2 , 2000 ,'1245');
 insert into books values (default , '0-521-57095-6' , 'How to build a parser' , '2018/9/2' , 1 , 2 , 2000 ,'1245');
 insert into orders values (default , '12' , '2019/4/3' , 1 , 13 , 'AWAITING' , 'abcdefghioukiopo' , 1);
-insert into orders_details values ('1-447-12735-8' , '14' , 1);
-insert into orders values (default , 12 , '2018/3/4' , 1 , 13 , default , '1111111111111111' , 1);
+insert into orders_details values ('1-447-12735-8' , '1' , 12);
+insert into orders values (default , 12 , '2018/3/4' , 1 , 13 , 'PAID' , '1111111111111111' , 1);
 insert into rates values ( '12' , '0-521-57095-6' , '12' , '3' , '2018/4/3' ) ;
 insert into discounts values ( 1 , 'awe' , 0.7);
 insert into shippers values  ('13' , 'gholi' , '12345678911');
@@ -81,6 +81,27 @@ UPDATE books s SET (avg_rate) =
      WHERE d.book_id = s.isbn);
   RETURN new;
  
+END; $$LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION add_price()
+RETURNS TRIGGER AS $$
+DECLARE price NUMERIC(10,2);
+DECLARE delta_price NUMERIC(10,2);
+BEGIN
+IF TG_OP = 'UPDATE' THEN
+price = (select books.price from books where isbn = old.book_id);
+delta_price = (new.amount - old.amount) * price;
+update orders
+set total_price =  (total_price + delta_price) where id = new.order_id;
+END IF;
+IF TG_OP = 'INSERT' THEN
+price = (select books.price from books where isbn = new.book_id);
+delta_price = (new.amount) * price;
+update orders
+set  total_price =  (total_price + delta_price) where id = new.order_id;
+END IF;
+
+return new;
 END; $$LANGUAGE plpgsql;
 
 
@@ -402,7 +423,7 @@ CREATE TABLE books_discounts (
   discount_id SERIAL REFERENCES discounts (id) ON DELETE CASCADE
 );
 
-
+ 
 CREATE TABLE orders (
   id          SERIAL PRIMARY KEY,
   customer_id SERIAL NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
@@ -413,9 +434,10 @@ CREATE TABLE orders (
     CHECK (state = 'AWAITING' OR state = 'PAID' OR state = 'SENT'),
   reference_code char(16) not null,
   address_id integer not null,
-  total_price numeric(6,2), --wtf , will handle this later
+  total_price numeric(10,2) default 0 ,  
   foreign key (customer_id , address_id)  REFERENCES customers_addresses(customers_id , addresses_id)
 );
+ 
  
 CREATE TABLE orders_details (
   book_id  VARCHAR REFERENCES books (isbn) ON DELETE CASCADE, 
@@ -459,7 +481,11 @@ FOR EACH ROW EXECUTE PROCEDURE set_rank();
 CREATE TRIGGER discounter
 BEFORE INSERT OR UPDATE ON orders
 FOR EACH ROW EXECUTE PROCEDURE give_discount();
-
+ 
+CREATE TRIGGER total_price
+BEFORE INSERT OR UPDATE on orders_details
+FOR EACH ROW EXECUTE PROCEDURE add_price(); 
+ 
 CREATE TRIGGER isbn_check
 BEFORE INSERT OR UPDATE ON books
 FOR EACH ROW EXECUTE PROCEDURE is_isbn();
