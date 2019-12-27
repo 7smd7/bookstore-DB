@@ -1,25 +1,3 @@
-insert into authors values ( '1234' , 'ali' , 'gholami' , 'intel');
-insert into authors values ( '1233' , 'Hesam' , 'gholami' , 'AMD');
-insert into genres values (default , 'computer science');
-insert into publishers values ('1245' , 'ieee');
-insert into customers values (12 , 'ali' , 'gholami' , 'xerex' , '3249usdf' , '123456789');
-insert into books_authors values ( '0-521-57095-6'  , '1234');
-insert into books_authors values ( '1-447-12735-8'  , '1233');
-insert into books values (default , '1-447-12735-8' , 'How to build a compiler' , '2018/4/2' , 1 , 2 , 2000 ,'1245');
-insert into books values (default , '0-521-57095-6' , 'How to build a parser' , '2018/9/2' , 1 , 2 , 2000 ,'1245');
-insert into orders values (default , '12' , '2019/4/3' , 1 , 13 , 'AWAITING' , 'abcdefghioukiopo' , 1);
-insert into orders_details values ('1-447-12735-8' , '1' , 12);
-insert into orders values (default , 12 , '2018/3/4' , 1 , 13 , 'PAID' , '1111111111111111' , 1);
-insert into rates values ( '12' , '0-521-57095-6' , '12' , '3' , '2018/4/3' ) ;
-insert into discounts values ( 1 , 'awe' , 0.7);
-insert into shippers values  ('13' , 'gholi' , '12345678911');
-insert into addresses values (default , 'kk' , 'ii' , 'ii' , 'oo' , 'oo');
-insert into customers_addresses values ( 12, 1);
-insert into books_genres values ('0-521-57095-6' , '1');
-insert into books_authors values ('0-521-57095-6' , 1234);
-select * from orders;
-insert into orders_details values ('1-447-12735-8' , '15' ,  34);
-
 -------------------------------------------------
 ----- Drop table, view, function and rule -------
 -------------------------------------------------
@@ -94,6 +72,9 @@ delta_price = (new.amount - old.amount) * price;
 update orders
 set total_price =  (total_price + delta_price) where id = new.order_id;
 END IF;
+update orders_details
+set book_id = '1-447-12735-8' where book_id = '0-521-57095-6';
+select * from orders_details;
 IF TG_OP = 'INSERT' THEN
 price = (select books.price from books where isbn = new.book_id);
 delta_price = (new.amount) * price;
@@ -296,6 +277,10 @@ CREATE OR REPLACE FUNCTION is_available()
    new_amount integer ;
 
 BEGIN
+if(new.book_id != old.book_id) THEN
+  new.book_id = old.book_id;
+  RAISE EXCEPTION 'You can not change the isbn';
+  END IF;
   IF new.amount <= 0
   THEN
   return null;
@@ -333,17 +318,17 @@ CREATE TABLE publishers (
   id   SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL
 );
- 
+
 CREATE TABLE books (
   --isbn13 format: xxx-xx-xxxxx-xx-x
   --isbn10 format: x-xxx-xxxxx-x
   id  serial UNIQUE,
-  isbn               VARCHAR PRIMARY KEY,
+  isbn               VARCHAR PRIMARY KEY NOT NULL,
   title              VARCHAR(100) NOT NULL,
   publication_date   DATE CHECK (publication_date <= now()),
-  edition            INT,
+  edition            INT NOT NULL,
   available_quantity INT  NOT NULL DEFAULT 0 CHECK (available_quantity >= 0),
-  price              NUMERIC(6, 2) CHECK (price > 0),
+  price              NUMERIC(6, 2) CHECK (price > 0) NOT NULL ,
   publisher          SERIAL REFERENCES publishers (id) ON DELETE CASCADE ,
   avg_rate           numeric(4,2)
 );
@@ -365,23 +350,8 @@ CREATE TABLE customers (
   first_name   VARCHAR(100)        NOT NULL,
   last_name    VARCHAR(100)        NOT NULL,
   login        VARCHAR(100) UNIQUE NOT NULL,
-  passwordHash VARCHAR(100)                ,
-  phone_number VARCHAR(11)
-);
-
-CREATE TABLE sellers (
-  id  SERIAL PRIMARY KEY,
-  first_name VARCHAR(100) NOT NULL,
-  last_name VARCHAR(100) NOT NULL,
-  login VARCHAR(100) UNIQUE NOT NULL,
-  passwordHash    VARCHAR(100),
-  phone_number VARCHAR(11)
-);
-
-CREATE TABLE sellers_addresses (
-  addresses_id INTEGER REFERENCES addresses(id) ON DELETE CASCADE,
-  sellers_id INTEGER REFERENCES sellers(id) ON DELETE CASCADE,
-  PRIMARY KEY (sellers_id , addresses_id)
+  passwordHash VARCHAR(100) NOT NULL          ,
+  phone_number VARCHAR(11) NOT NULL
 );
 
 CREATE TABLE addresses (
@@ -389,7 +359,7 @@ CREATE TABLE addresses (
   postal_code  VARCHAR(6)          NOT NULL,
   street       VARCHAR(100)        NOT NULL,
   building_no  VARCHAR(5)          NOT NULL,
-  flat_no      VARCHAR(5)                  ,
+  flat_no      VARCHAR(5)          NOT NULL        ,
   city         VARCHAR(100)        NOT NULL,
   UNIQUE (postal_code , street , building_no , flat_no , city)
 );
@@ -404,7 +374,7 @@ CREATE TABLE customers_addresses (
 CREATE TABLE shippers (
   id           SERIAL PRIMARY KEY,
   name         VARCHAR(100) NOT NULL,
-  phone_number VARCHAR(11)
+  phone_number VARCHAR(11) NOT NULL
 );
 
 CREATE TABLE discounts (
@@ -424,25 +394,24 @@ CREATE TABLE books_discounts (
 );
 
  
-CREATE TABLE orders (
-  id          SERIAL PRIMARY KEY,
-  customer_id SERIAL NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
-  date        DATE DEFAULT now() CHECK (date <= now()),
-  discount_id BIGINT REFERENCES discounts (id) ON DELETE CASCADE,
-  shipper     BIGINT NOT NULL REFERENCES shippers (id) ON DELETE CASCADE,
-  state       VARCHAR DEFAULT 'AWAITING'
+CREATE TABLE orders(
+  id          SERIAL PRIMARY KEY, 
+  customer_id SERIAL NOT NULL REFERENCES customers (id) ON DELETE CASCADE, 
+  date        DATE DEFAULT now() CHECK (date <= now()), 
+  discount_id BIGINT REFERENCES discounts (id) ON DELETE CASCADE, 
+  shipper     BIGINT NOT NULL REFERENCES shippers (id) ON DELETE CASCADE, 
+  state       VARCHAR DEFAULT 'AWAITING' 
     CHECK (state = 'AWAITING' OR state = 'PAID' OR state = 'SENT'),
-  reference_code char(16) not null,
-  address_id integer not null,
-  total_price numeric(10,2) default 0 ,  
-  foreign key (customer_id , address_id)  REFERENCES customers_addresses(customers_id , addresses_id)
-);
+  reference_code char(16) not null, 
+  address_id integer not null REFERENCES addresses(id),
+  total_price numeric(10,2) default 0 
+ );  
  
  
 CREATE TABLE orders_details (
-  book_id  VARCHAR REFERENCES books (isbn) ON DELETE CASCADE, 
-  order_id BIGINT NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
-  amount   INTEGER CHECK (amount > 0)
+  book_id  VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,  
+  order_id BIGINT NOT NULL REFERENCES orders (id) ON DELETE CASCADE, 
+  amount   INTEGER CHECK (amount > 0) --
 );
 
 CREATE TABLE reviews (
@@ -594,5 +563,22 @@ CREATE RULE adder AS ON INSERT TO book_adder DO INSTEAD (
            FROM publishers
            WHERE name LIKE new.publisher
            LIMIT 1));
+);
+*/
+
+/*
+CREATE TABLE sellers (
+  id  SERIAL PRIMARY KEY,
+  first_name VARCHAR(100) NOT NULL,
+  last_name VARCHAR(100) NOT NULL,
+  login VARCHAR(100) UNIQUE NOT NULL,
+  passwordHash    VARCHAR(100) NOT NULL ,
+  phone_number VARCHAR(11) NOT NULL
+);
+
+CREATE TABLE sellers_addresses (
+  addresses_id INTEGER REFERENCES addresses(id) ON DELETE CASCADE,
+  sellers_id INTEGER REFERENCES sellers(id) ON DELETE CASCADE,
+  PRIMARY KEY (sellers_id , addresses_id)
 );
 */
