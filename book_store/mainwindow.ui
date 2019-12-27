@@ -17,14 +17,11 @@
    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
   </property>
   <property name="whatsThis">
-   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-  </property>
-  <property name="autoFillBackground">
-   <bool>false</bool>
+   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;This is a test&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
   </property>
   <property name="styleSheet">
    <string notr="true">background-color:
-qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 0, 0, 255), stop:1 rgb(100, 127, 168, 100))</string>
+qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 0, 0, 255), stop:1 rgba(32, 74, 135 , 220));</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <widget class="QPushButton" name="pushButton">
@@ -36,8 +33,18 @@ qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 0, 0, 255), s
       <height>38</height>
      </rect>
     </property>
+    <property name="autoFillBackground">
+     <bool>false</bool>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:
+white;</string>
+    </property>
     <property name="text">
      <string>لیست مشتری</string>
+    </property>
+    <property name="flat">
+     <bool>false</bool>
     </property>
    </widget>
    <widget class="QTableWidget" name="tableWidget">
@@ -49,12 +56,9 @@ qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 0, 0, 255), s
       <height>331</height>
      </rect>
     </property>
-    <property name="autoFillBackground">
-     <bool>false</bool>
-    </property>
     <property name="styleSheet">
      <string notr="true">background-color:
-rgb(186, 189, 182)</string>
+rgb(114, 159, 207)</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pushButton_2">
@@ -65,6 +69,10 @@ rgb(186, 189, 182)</string>
       <width>231</width>
       <height>38</height>
      </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:
+white;</string>
     </property>
     <property name="text">
      <string>لیست کتاب</string>
@@ -78,6 +86,10 @@ rgb(186, 189, 182)</string>
       <width>231</width>
       <height>38</height>
      </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:
+white;</string>
     </property>
     <property name="text">
      <string>لیست سفارشات</string>
