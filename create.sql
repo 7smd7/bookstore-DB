@@ -4,6 +4,7 @@
 DROP TABLE IF EXISTS rates CASCADE;
 DROP TABLE IF EXISTS books CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE table_catalog = 'mydb'  AND table_name = 'books';
 DROP TABLE IF EXISTS genres CASCADE;
 DROP TABLE IF EXISTS authors CASCADE;
 DROP TABLE IF EXISTS reviews CASCADE;
@@ -84,16 +85,12 @@ delta_price = (new.amount - old.amount) * price;
 update orders
 set total_price =  (total_price + delta_price) where id = new.order_id;
 END IF;
-update orders_details
-set book_id = '1-447-12735-8' where book_id = '0-521-57095-6';
-select * from orders_details;
 IF TG_OP = 'INSERT' THEN
 price = (select books.price from books where isbn = new.book_id);
 delta_price = (new.amount) * price;
 update orders
 set  total_price =  (total_price + delta_price) where id = new.order_id;
 END IF;
-
 return new;
 END; $$LANGUAGE plpgsql;
 
@@ -418,7 +415,7 @@ CREATE TABLE orders(
   address_id integer not null REFERENCES addresses(id),
   total_price numeric(10,2) default 0 
  );  
-
+ 
 CREATE TABLE orders_details (
   book_id VARCHAR    REFERENCES books (isbn) ON DELETE CASCADE,  
   order_id BIGINT NOT NULL REFERENCES orders (id) ON DELETE CASCADE, 
@@ -440,7 +437,6 @@ CREATE TABLE rates (
   rate    INTEGER CHECK (rate BETWEEN 0 AND 10),
   date        DATE DEFAULT now() CHECK (date <= now())
 );
-
 -------------------------------------------------
 ------------ Create unique index ----------------
 -------------------------------------------------
@@ -527,6 +523,7 @@ CREATE VIEW book_adder AS (
 /*
 when some book is not rated , it doesnt show up in books_rank
 */
+
 CREATE OR REPLACE VIEW books_rank AS (
   SELECT
     isbn,
@@ -541,12 +538,12 @@ CREATE OR REPLACE VIEW books_rank AS (
           books.isbn                   AS isbn,
           title                        AS title,
           avg(rates.rate) :: NUMERIC(4, 2) AS  rate,
-          sum(s.sold)                  AS sold
+          sum(s.sold)   :: numeric               AS sold
         FROM books
           JOIN rates ON books.isbn = rates.book_id
           JOIN (SELECT
                   isbn,
-                  coalesce(sum(amount), 0) AS sold
+                   sold_count  as sold
                 FROM books
                   LEFT JOIN orders_details ON books.isbn = orders_details.book_id
                 GROUP BY isbn) AS s ON s.isbn LIKE books.isbn
