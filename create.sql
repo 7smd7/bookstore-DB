@@ -28,13 +28,14 @@ DROP FUNCTION IF EXISTS is_available();
 DROP FUNCTION IF EXISTS has_bought();
 DROP FUNCTION IF EXISTS set_rank();
 DROP FUNCTION IF EXISTS is_isbn();
+DROP FUNCTION IF EXISTS add_price();
+DROP FUNCTION IF EXISTS sold_update();
 -------------------------------------------------
 DROP VIEW IF EXISTS book_adder;
 DROP VIEW IF EXISTS books_rank;
 --------------------------------f-----------------
 DROP RULE IF EXISTS adder
 ON book_adder;
-
 -------------------------------------------------
 ------------- Function of trigger----------------
 -------------------------------------------------
@@ -64,7 +65,7 @@ END; $$LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION sold_update()
 RETURNS TRIGGER AS $$
 BEGIN
-IF((select state from orders where id = new.id) = 'PAID' and old.state = 'AWAITING') THEN
+IF(new.state = 'PAID' and old.state = 'AWAITING') THEN
 UPDATE books
 SET    sold_count = sold_count + (select sum(amount) from orders_details where isbn = book_id)
 WHERE  (isbn = (select book_id from orders_details where order_id  = new.id limit 1));
@@ -464,9 +465,9 @@ FOR EACH ROW EXECUTE PROCEDURE give_discount();
 CREATE TRIGGER total_price
 BEFORE INSERT OR UPDATE on orders_details
 FOR EACH ROW EXECUTE PROCEDURE add_price(); 
- 
+
 CREATE TRIGGER sold_book_update
-BEFORE INSERT OR UPDATE on orders
+AFTER INSERT OR UPDATE on orders
 FOR EACH ROW EXECUTE PROCEDURE sold_update();
 
 drop trigger sold_book_update on orders;
