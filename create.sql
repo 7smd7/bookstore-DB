@@ -61,6 +61,17 @@ UPDATE books s SET (avg_rate) =
  
 END; $$LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION sold_update()
+RETURNS TRIGGER AS $$
+BEGIN
+IF((select state from orders where id = new.id) = 'PAID' and old.state = 'AWAITING') THEN
+UPDATE books
+SET    sold_count = sold_count + (select sum(amount) from orders_details where isbn = book_id)
+WHERE  (isbn = (select book_id from orders_details where order_id  = new.id limit 1));
+END IF;
+return new;
+END; $$LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION add_price()
 RETURNS TRIGGER AS $$
 DECLARE price NUMERIC(10,2);
@@ -277,7 +288,7 @@ CREATE OR REPLACE FUNCTION is_available()
    new_amount integer ;
 
 BEGIN
-if(new.book_id != old.book_id) THEN
+if(TG_OP = 'UPDATE' and new.book_id != old.book_id) THEN
   new.book_id = old.book_id;
   RAISE EXCEPTION 'You can not change the isbn';
   END IF;
@@ -318,7 +329,7 @@ CREATE TABLE publishers (
   id   SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL
 );
-
+ 
 CREATE TABLE books (
   --isbn13 format: xxx-xx-xxxxx-xx-x
   --isbn10 format: x-xxx-xxxxx-x
@@ -330,7 +341,8 @@ CREATE TABLE books (
   available_quantity INT  NOT NULL DEFAULT 0 CHECK (available_quantity >= 0),
   price              NUMERIC(6, 2) CHECK (price > 0) NOT NULL ,
   publisher          SERIAL REFERENCES publishers (id) ON DELETE CASCADE ,
-  avg_rate           numeric(4,2)
+  avg_rate           numeric(4,2),
+  sold_count         Integer default 0 not NULL
 );
  
 CREATE TABLE books_authors (
@@ -393,7 +405,6 @@ CREATE TABLE books_discounts (
   discount_id SERIAL REFERENCES discounts (id) ON DELETE CASCADE
 );
 
- 
 CREATE TABLE orders(
   id          SERIAL PRIMARY KEY, 
   customer_id SERIAL NOT NULL REFERENCES customers (id) ON DELETE CASCADE, 
@@ -406,10 +417,9 @@ CREATE TABLE orders(
   address_id integer not null REFERENCES addresses(id),
   total_price numeric(10,2) default 0 
  );  
- 
- 
+
 CREATE TABLE orders_details (
-  book_id  VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,  
+  book_id VARCHAR    REFERENCES books (isbn) ON DELETE CASCADE,  
   order_id BIGINT NOT NULL REFERENCES orders (id) ON DELETE CASCADE, 
   amount   INTEGER CHECK (amount > 0) --
 );
@@ -455,6 +465,11 @@ CREATE TRIGGER total_price
 BEFORE INSERT OR UPDATE on orders_details
 FOR EACH ROW EXECUTE PROCEDURE add_price(); 
  
+CREATE TRIGGER sold_book_update
+BEFORE INSERT OR UPDATE on orders
+FOR EACH ROW EXECUTE PROCEDURE sold_update();
+
+drop trigger sold_book_update on orders;
 CREATE TRIGGER isbn_check
 BEFORE INSERT OR UPDATE ON books
 FOR EACH ROW EXECUTE PROCEDURE is_isbn();
