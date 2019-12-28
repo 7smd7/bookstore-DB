@@ -328,8 +328,7 @@ CREATE TABLE publishers (
 CREATE TABLE books (
   --isbn13 format: xxx-xx-xxxxx-xx-x
   --isbn10 format: x-xxx-xxxxx-x
-  id  serial PRIMARY KEY UNIQUE,
-  isbn               VARCHAR NOT NULL,
+  isbn               VARCHAR PRIMARY KEY NOT NULL,
   title              VARCHAR(100) NOT NULL,
   publication_date   DATE CHECK (publication_date <= now()),
   edition            INT NOT NULL,
