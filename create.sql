@@ -44,7 +44,7 @@ CREATE OR REPLACE FUNCTION has_bought()
 BEGIN
   IF (SELECT count(book_id) AS a
       FROM orders_details
-        JOIN orders ON orders_details.order_id = orders.id
+        JOIN orders ON orders_details.order_id = orders.order_id
       WHERE customer_id = new.customer_id AND book_id = new.book_id) = 0
   THEN RAISE EXCEPTION 'CUSTOMER HAS NOT BOUGHT THIS BOOK'; END IF;
   RETURN new;
@@ -67,7 +67,7 @@ BEGIN
 IF(new.state = 'PAID' and old.state = 'AWAITING') THEN
 UPDATE books
 SET    sold_count = sold_count + (select sum(amount) from orders_details where isbn = book_id)
-WHERE  (isbn = (select book_id from orders_details where order_id  = new.id limit 1));
+WHERE  (isbn = (select book_id from orders_details where order_id  = new.order_id limit 1));
 END IF;
 return new;
 END; $$LANGUAGE plpgsql;
@@ -81,13 +81,13 @@ IF TG_OP = 'UPDATE' THEN
 price = (select books.price from books where isbn = old.book_id);
 delta_price = (new.amount - old.amount) * price;
 update orders
-set total_price =  (total_price + delta_price) where id = new.order_id;
+set total_price =  (total_price + delta_price) where order_id = new.order_id;
 END IF;
 IF TG_OP = 'INSERT' THEN
 price = (select books.price from books where isbn = new.book_id);
 delta_price = (new.amount) * price;
 update orders
-set  total_price =  (total_price + delta_price) where id = new.order_id;
+set  total_price =  (total_price + delta_price) where order_id = new.order_id;
 END IF;
 return new;
 END; $$LANGUAGE plpgsql;
@@ -100,7 +100,7 @@ BEGIN
  
   IF (SELECT count(book_id) AS a
       FROM orders_details
-        JOIN orders ON orders_details.order_id = orders.id
+        JOIN orders ON orders_details.order_id = orders.order_id
       WHERE customer_id = new.customer_id AND book_id = new.book_id) = 0
   THEN RAISE EXCEPTION 'CUSTOMER HAS NOT BOUGHT THIS BOOK'; END IF;
 
@@ -126,7 +126,7 @@ BEGIN
          FROM discounts
            JOIN customers_discounts ON discounts.id = customers_discounts.discount_id
          WHERE customer_id = new.customer_id);
-  id = (SELECT discounts.id
+  id = (SELECT discounts.discount_id
         FROM discounts
           JOIN customers_discounts ON discounts.id = customers_discounts.discount_id
         WHERE customer_id = new.customer_id AND discounts.value = val);
@@ -211,11 +211,11 @@ DECLARE
 BEGIN
   customer = (SELECT customer_id
               FROM orders
-              WHERE id = new.order_id);
+              WHERE order_id = new.order_id);
 
   quantity = (SELECT coalesce(sum(orders_details.amount), 0)
               FROM orders
-                LEFT JOIN orders_details ON orders.id = orders_details.order_id
+                LEFT JOIN orders_details ON orders.order_id = orders_details.order_id
               WHERE orders.customer_id = customer
               LIMIT 1);
 
@@ -223,7 +223,7 @@ BEGIN
                 customer_id,
                 discount_id
               FROM customers_discounts
-                LEFT JOIN discounts ON discounts.id = customers_discounts.discount_id
+                LEFT JOIN discounts ON discounts.discount_id = customers_discounts.discount_id
               WHERE customer_id = customer AND
                     (discounts.name LIKE 'Bronze Client Rank' OR discounts.name LIKE 'Silver Client Rank' OR
                      discounts.name LIKE 'Gold Client Rank' OR discounts.name LIKE 'Platinum Client Rank')
@@ -231,7 +231,7 @@ BEGIN
 
     val = (SELECT coalesce(max(discounts.value), 0)
            FROM discounts
-           WHERE discounts.id = disc.discount_id);
+           WHERE discounts.discount_id = disc.discount_id);
 
     IF quantity > 40 AND val < 0.12
     THEN
@@ -265,7 +265,7 @@ CREATE OR REPLACE FUNCTION is_paid()
 RETURNS TRIGGER AS $$
 DECLARE new_amount integer ;
 BEGIN
-  IF((select state from orders where new.order_id = id ) = 'PAID')
+  IF((select state from orders where new.order_id = order_id ) = 'PAID')
   THEN
   new_amount = (SELECT books.available_quantity
                    FROM books
@@ -307,7 +307,7 @@ END; $$LANGUAGE plpgsql;
 ---------------- Create table -------------------
 -------------------------------------------------
 CREATE TABLE authors (
-  id           SERIAL PRIMARY KEY,
+  authors_id           SERIAL PRIMARY KEY,
   first_name   VARCHAR(100),
   second_name  VARCHAR(100),
   company_name VARCHAR(100),
@@ -316,13 +316,13 @@ CREATE TABLE authors (
 );
 
 CREATE TABLE genres (
-  id   SERIAL PRIMARY KEY,
+  genre_id   SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL
 );
 
 
 CREATE TABLE publishers (
-  id   SERIAL PRIMARY KEY,
+  publisher_id   SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL
 );
  
@@ -335,27 +335,27 @@ CREATE TABLE books (
   edition            INT NOT NULL,
   available_quantity INT  NOT NULL DEFAULT 0 CHECK (available_quantity >= 0),
   price              NUMERIC(6, 2) CHECK (price > 0) NOT NULL ,
-  publisher          SERIAL REFERENCES publishers (id) ON DELETE CASCADE ,
+  publisher_id       SERIAL REFERENCES publishers (publisher_id) ON DELETE CASCADE ,
   avg_rate           numeric(4,2),
   sold_count         Integer default 0 not NULL
 );
  
 CREATE TABLE books_authors (
-  id           SERIAL PRIMARY KEY,
-  book_id    VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
+  books_authors_id          SERIAL PRIMARY KEY,
+  book_id     VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
   author_id   SERIAL REFERENCES authors (id) ON DELETE CASCADE
 --   ,PRIMARY KEY (book_id, author_id)
 );
 
 CREATE TABLE books_genres (
-  id           SERIAL PRIMARY KEY,
+  books_genres_id           SERIAL PRIMARY KEY,
   book_id  VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
   genre_id SERIAL REFERENCES genres (id) ON DELETE CASCADE
 --   ,PRIMARY KEY (book_id, genre_id)
 );
 
 CREATE TABLE customers (
-  id           SERIAL PRIMARY KEY,
+  customer_id           SERIAL PRIMARY KEY,
   first_name   VARCHAR(100)        NOT NULL,
   last_name    VARCHAR(100)        NOT NULL,
   login        VARCHAR(100) UNIQUE NOT NULL,
@@ -364,7 +364,7 @@ CREATE TABLE customers (
 );
 
 CREATE TABLE addresses (
-  id SERIAL PRIMARY key,
+  address_id SERIAL PRIMARY key,
   postal_code  VARCHAR(6)          NOT NULL,
   street       VARCHAR(100)        NOT NULL,
   building_no  VARCHAR(5)          NOT NULL,
@@ -375,68 +375,68 @@ CREATE TABLE addresses (
  
 
 CREATE TABLE customers_addresses (
-  id           SERIAL PRIMARY KEY,
-  customers_id INTEGER REFERENCES customers (id) ON DELETE CASCADE ,
-  addresses_id INTEGER REFERENCES addresses (id) ON DELETE CASCADE
+  customers_addresses_id           SERIAL PRIMARY KEY,
+  customers_id INTEGER REFERENCES customers (customer_id) ON DELETE CASCADE ,
+  addresses_id INTEGER REFERENCES addresses (address_id) ON DELETE CASCADE
 --   ,PRIMARY KEY (customers_id, addresses_id)
 );
 
 CREATE TABLE shippers (
-  id           SERIAL PRIMARY KEY,
+  shipper_id   SERIAL PRIMARY KEY,
   name         VARCHAR(100) NOT NULL,
   phone_number VARCHAR(11) NOT NULL
 );
 
 CREATE TABLE discounts (
-  id    SERIAL PRIMARY KEY,
-  name  VARCHAR(100),
+  discount_id    SERIAL PRIMARY KEY,
+  name           VARCHAR(100),
   value NUMERIC(2, 2) DEFAULT 0 CHECK (value >= 0.00 AND value <= 1.00)
 );
 
 CREATE TABLE customers_discounts (
-  id          SERIAL PRIMARY KEY,
-  customer_id SERIAL REFERENCES customers (id) ON DELETE CASCADE,
-  discount_id SERIAL REFERENCES discounts (id) ON DELETE CASCADE
+  customers_discounts_id          SERIAL PRIMARY KEY,
+  customer_id SERIAL REFERENCES customers (customer_id) ON DELETE CASCADE,
+  discount_id SERIAL REFERENCES discounts (discount_id) ON DELETE CASCADE
 );
 
 CREATE TABLE books_discounts (
-  id           SERIAL PRIMARY KEY,
+  books_discounts_id           SERIAL PRIMARY KEY,
   book_id     VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
-  discount_id SERIAL REFERENCES discounts (id) ON DELETE CASCADE
+  discount_id SERIAL REFERENCES discounts (discount_id) ON DELETE CASCADE
 );
 
 CREATE TABLE orders(
-  id          SERIAL PRIMARY KEY, 
-  customer_id SERIAL NOT NULL REFERENCES customers (id) ON DELETE CASCADE, 
+  order_id          SERIAL PRIMARY KEY,
+  customer_id SERIAL NOT NULL REFERENCES customers (customer_id) ON DELETE CASCADE,
   date        DATE DEFAULT now() CHECK (date <= now()), 
-  discount_id BIGINT REFERENCES discounts (id) ON DELETE CASCADE, 
-  shipper     BIGINT NOT NULL REFERENCES shippers (id) ON DELETE CASCADE, 
+  discount_id BIGINT REFERENCES discounts (discount_id) ON DELETE CASCADE,
+  shipper     BIGINT NOT NULL REFERENCES shippers (shipper_id) ON DELETE CASCADE,
   state       VARCHAR DEFAULT 'AWAITING' 
     CHECK (state = 'AWAITING' OR state = 'PAID' OR state = 'SENT'),
   reference_code char(16) not null, 
-  address_id integer not null REFERENCES addresses(id),
+  address_id integer not null REFERENCES addresses(address_id),
   total_price numeric(10,2) default 0 
  );  
  
 CREATE TABLE orders_details (
   id           SERIAL PRIMARY KEY,
   book_id VARCHAR    REFERENCES books (isbn) ON DELETE CASCADE,  
-  order_id BIGINT NOT NULL REFERENCES orders (id) ON DELETE CASCADE, 
-  amount   INTEGER CHECK (amount > 0) --
+  order_id BIGINT NOT NULL REFERENCES orders (order_id) ON DELETE CASCADE,
+  amount   INTEGER CHECK (amount > 0)
 );
 
 CREATE TABLE reviews (
-  id          SERIAL PRIMARY KEY,
+  review_id          SERIAL PRIMARY KEY,
   book_id     VARCHAR NOT NULL REFERENCES books (isbn) ,
-  customer_id BIGINT  NOT NULL REFERENCES customers (id) ,
+  customer_id BIGINT  NOT NULL REFERENCES customers (customer_id) ,
   review      VARCHAR(1000)  NOT NULL ,
   date        DATE DEFAULT now() CHECK (date <= now())
 );
 
 CREATE TABLE rates (
-  id          SERIAL PRIMARY KEY,
+  rate_id          SERIAL PRIMARY KEY,
   book_id     VARCHAR NOT NULL REFERENCES books (isbn) ON DELETE CASCADE,
-  customer_id BIGINT  NOT NULL REFERENCES customers (id) ON DELETE CASCADE,
+  customer_id BIGINT  NOT NULL REFERENCES customers (customer_id) ON DELETE CASCADE,
   rate    INTEGER CHECK (rate BETWEEN 0 AND 10),
   date        DATE DEFAULT now() CHECK (date <= now())
 );
@@ -521,10 +521,10 @@ CREATE VIEW book_adder AS (
     books.avg_rate,
     array (select names from books_authors ba join get_authors () ga on ba.author_id=ga.id_authors where ba.book_id=books.isbn),
     publishers.name AS publisher,
-    authors.id
+    authors.authors_id
   FROM books
-    JOIN publishers ON books.publisher = publishers.id join books_authors on books_authors.book_id = books.isbn
-    join authors on books_authors.author_id = authors.id  order by books.id
+    JOIN publishers ON books.publisher_id = publishers.publisher_id join books_authors on books_authors.book_id = books.isbn
+    join authors on books_authors.author_id = authors.authors_id  order by books.isbn
 ) ;
 
 
@@ -536,7 +536,7 @@ CREATE OR REPLACE VIEW books_rank AS (
     sold,
     array(SELECT DISTINCT name
           FROM books_genres
-            JOIN genres ON books_genres.genre_id = genres.id
+            JOIN genres ON books_genres.genre_id = genres.genre_id
           WHERE book_id LIKE isbn) AS genres
 
   FROM (SELECT
@@ -555,9 +555,9 @@ RETURNS table(id_authors int, names varchar) AS $$
 BEGIN
    return query
      SELECT * FROM(
-       SELECT  id , (CONCAT(first_name, ' ', second_name) :: varchar) as name FROM authors where  company_name IS NULL
+       SELECT  authors_id , (CONCAT(first_name, ' ', second_name) :: varchar) as name FROM authors where  company_name IS NULL
        union
-       SELECT id , company_name as name FROM authors where company_name IS NOT NULL
+       SELECT authors_id , company_name as name FROM authors where company_name IS NOT NULL
         ) as q;
 END;
 $$ LANGUAGE plpgsql;
