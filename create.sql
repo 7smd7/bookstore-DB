@@ -519,6 +519,7 @@ CREATE VIEW book_adder AS (
     join authors on books_authors.author_id = authors.id  order by books.id
 ) ;
 
+
 CREATE OR REPLACE VIEW books_rank AS (
   SELECT
     isbn,
@@ -533,7 +534,7 @@ CREATE OR REPLACE VIEW books_rank AS (
           books.isbn                   AS isbn,
           title                        AS title,
           avg(rates.rate) :: NUMERIC(4, 2) AS  rate,
-          sold_count :: numeric   AS sold
+          sold_count     AS sold
         FROM books
           JOIN rates ON books.isbn = rates.book_id
         GROUP BY books.isbn) AS o
