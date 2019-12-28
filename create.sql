@@ -19,8 +19,6 @@ DROP TABLE IF EXISTS orders_details CASCADE;
 DROP TABLE IF EXISTS books_discounts CASCADE;
 DROP TABLE IF EXISTS customers_addresses CASCADE;
 DROP TABLE IF EXISTS customers_discounts CASCADE;
-DROP TABLE IF EXISTS sellers CASCADE;
-DROP TABLE IF EXISTS sellers_addresses CASCADE;
 -------------------------------------------------
 DROP FUNCTION IF EXISTS is_phonenumber();
 DROP FUNCTION IF EXISTS give_discount();
@@ -343,15 +341,17 @@ CREATE TABLE books (
 );
  
 CREATE TABLE books_authors (
+  id           SERIAL PRIMARY KEY,
   book_id    VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
-  author_id   SERIAL REFERENCES authors (id) ON DELETE CASCADE,
-  PRIMARY KEY (book_id, author_id)
+  author_id   SERIAL REFERENCES authors (id) ON DELETE CASCADE
+--   ,PRIMARY KEY (book_id, author_id)
 );
 
 CREATE TABLE books_genres (
+  id           SERIAL PRIMARY KEY,
   book_id  VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
-  genre_id SERIAL REFERENCES genres (id) ON DELETE CASCADE,
-  PRIMARY KEY (book_id, genre_id)
+  genre_id SERIAL REFERENCES genres (id) ON DELETE CASCADE
+--   ,PRIMARY KEY (book_id, genre_id)
 );
 
 CREATE TABLE customers (
@@ -375,9 +375,10 @@ CREATE TABLE addresses (
  
 
 CREATE TABLE customers_addresses (
+  id           SERIAL PRIMARY KEY,
   customers_id INTEGER REFERENCES customers (id) ON DELETE CASCADE ,
-  addresses_id INTEGER REFERENCES addresses (id) ON DELETE CASCADE ,
-  PRIMARY KEY (customers_id, addresses_id)
+  addresses_id INTEGER REFERENCES addresses (id) ON DELETE CASCADE
+--   ,PRIMARY KEY (customers_id, addresses_id)
 );
 
 CREATE TABLE shippers (
@@ -393,11 +394,13 @@ CREATE TABLE discounts (
 );
 
 CREATE TABLE customers_discounts (
+  id          SERIAL PRIMARY KEY,
   customer_id SERIAL REFERENCES customers (id) ON DELETE CASCADE,
   discount_id SERIAL REFERENCES discounts (id) ON DELETE CASCADE
 );
 
 CREATE TABLE books_discounts (
+  id           SERIAL PRIMARY KEY,
   book_id     VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
   discount_id SERIAL REFERENCES discounts (id) ON DELETE CASCADE
 );
@@ -416,6 +419,7 @@ CREATE TABLE orders(
  );  
  
 CREATE TABLE orders_details (
+  id           SERIAL PRIMARY KEY,
   book_id VARCHAR    REFERENCES books (isbn) ON DELETE CASCADE,  
   order_id BIGINT NOT NULL REFERENCES orders (id) ON DELETE CASCADE, 
   amount   INTEGER CHECK (amount > 0) --
@@ -540,3 +544,6 @@ CREATE OR REPLACE VIEW books_rank AS (
         GROUP BY books.isbn) AS o
   ORDER BY sold DESC, rate DESC
 );
+--
+-- SET enable_nestloop=0;
+-- SELECT 'postgresql' AS dbms,t.table_catalog,t.table_schema,t.table_name,c.column_name,c.ordinal_position,c.data_type,c.character_maximum_length,n.constraint_type,k2.table_schema,k2.table_name,k2.column_name FROM information_schema.tables t NATURAL LEFT JOIN information_schema.columns c LEFT JOIN(information_schema.key_column_usage k NATURAL JOIN information_schema.table_constraints n NATURAL LEFT JOIN information_schema.referential_constraints r)ON c.table_catalog=k.table_catalog AND c.table_schema=k.table_schema AND c.table_name=k.table_name AND c.column_name=k.column_name LEFT JOIN information_schema.key_column_usage k2 ON k.position_in_unique_constraint=k2.ordinal_position AND r.unique_constraint_catalog=k2.constraint_catalog AND r.unique_constraint_schema=k2.constraint_schema AND r.unique_constraint_name=k2.constraint_name WHERE t.TABLE_TYPE='BASE TABLE' AND t.table_schema NOT IN('information_schema','pg_catalog');
