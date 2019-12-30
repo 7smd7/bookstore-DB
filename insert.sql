@@ -21,6 +21,8 @@ insert into customers values (12 , 'ali' , 'gholami' , 'xerex' , '3903we9Jijfex'
 insert into customers values (13 , 'ali' , 'Ruhi' , 'Infini' , '39233e9Jijfex' , '09112155544');
 insert into books_authors values ( '0-345-81602-1'  , DEFAULT);
 insert into books values (default , '0-345-81602-1' , 'Twelve rules for life' ,'2018/3/2' , 10 , 200 , 100.22 , 1 , default , default   );
+insert into books values (default , '0-521-57095-6' , 'How to be an asshole in a nutshell' ,'2018/3/2' , 10 , 200 , 100.22 , 1 , default , default   );
+insert into books_genres values ('0-521-57095-6' , '2');
 select * from books;
 select * from publishers;
 select * from orders_details;

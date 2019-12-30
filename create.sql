@@ -34,8 +34,6 @@ DROP FUNCTION IF EXISTS sold_update();
 DROP VIEW IF EXISTS book_adder;
 DROP VIEW IF EXISTS books_rank;
 --------------------------------f-----------------
-DROP RULE IF EXISTS adder
-ON book_adder;
 -------------------------------------------------
 ------------- Function of trigger----------------
 -------------------------------------------------
@@ -341,7 +339,6 @@ CREATE TABLE books (
   avg_rate           numeric(4,2),
   sold_count         Integer default 0 not NULL
 );
- 
 CREATE TABLE books_authors (
   book_id    VARCHAR REFERENCES books (isbn) ON DELETE CASCADE,
   author_id   SERIAL REFERENCES authors (id) ON DELETE CASCADE,
@@ -429,6 +426,7 @@ CREATE TABLE reviews (
   date        DATE DEFAULT now() CHECK (date <= now())
 );
 
+
 CREATE TABLE rates (
   id          SERIAL PRIMARY KEY,
   book_id     VARCHAR NOT NULL REFERENCES books (isbn) ON DELETE CASCADE,
@@ -495,15 +493,15 @@ CREATE TRIGGER available_check
 BEFORE INSERT OR UPDATE ON orders_details
 FOR EACH ROW EXECUTE PROCEDURE is_available();
 
+
 CREATE TRIGGER paid_check
 AFTER INSERT OR UPDATE ON orders_details
 FOR EACH ROW EXECUTE PROCEDURE is_paid();
 -------------------------------------------------
 ---------------- Create View --------------------
 -------------------------------------------------
-
 --under construction
- 
+
 CREATE VIEW book_adder AS (
   SELECT
     books.isbn,
@@ -518,6 +516,7 @@ CREATE VIEW book_adder AS (
     JOIN publishers ON books.publisher = publishers.id join books_authors on books_authors.book_id = books.isbn
     join authors on books_authors.author_id = authors.id  order by books.id
 ) ;
+
 
 
 CREATE OR REPLACE VIEW books_rank AS (
@@ -540,45 +539,3 @@ CREATE OR REPLACE VIEW books_rank AS (
         GROUP BY books.isbn) AS o
   ORDER BY sold DESC, rate DESC
 );
-
-
-------------- sample insert -----------------
-insert into authors values ( '1234' , 'ali' , 'gholami' , 'intel');
-insert into authors values ( '1233' , 'Hesam' , 'gholami' , 'AMD');
-insert into genres values (default , 'Computer science');
-insert into genres values (default , 'Science fiction');
-insert into genres values (default , 'Politics');
-insert into genres values (default , 'Romance');
-insert into genres values (default , 'Novel');
-insert into genres values (default , 'Philosophy');
-insert into genres values (default , 'Business');
-insert into genres values (default , 'Biography');
-insert into genres values (default , 'Psychology');
-insert into genres values (default , 'History');
-insert into genres values (default , 'Comics');
-insert into genres values (default , 'Horror');
-insert into genres values (default , 'Manga');
-insert into genres values (default , 'Religion');
-insert into publishers values (default , 'Dummies');
-insert into publishers values (default , 'Reily');
-insert into publishers values (default , 'IEEE');
-insert into customers values (12 , 'ali' , 'gholami' , 'xerex' , '3903we9Jijfex' , '09112155544');
-insert into customers values (13 , 'ali' , 'Ruhi' , 'Infini' , '39233e9Jijfex' , '09112155544');
-insert into books_authors values ( '0-521-57095-6'  , '1234');
-insert into books_authors values ( '1-447-12735-8'  , '1233');
-insert into books values (default , '1-447-12735-8' , 'How to build a compiler in a nutshell' , '2018/4/2' , 1 , 2 , 2000 ,default);
-insert into books values (default , '0-521-57095-6' , 'How to build a parser in a nutshell' , '2018/9/2' , 1 , 2 , 2000 ,default);
-insert into books values ( '0-345-81602-1' , 'Twelve rules for life' , '2018/3/2' ,  '9' , '100' , '1200' , 3 , default);
-insert into orders values (default , '13' , '2019/4/3' , 1 , 13 , 'AWAITING' , '1928239948489999' , 1);
-insert into orders_details values ('1-447-12735-8' , '1' , 12);
-insert into orders values (default , 12 , '2018/3/4' , 1 , 13 , 'AWAITING' , '1111111111111111' , 1);
-insert into rates values ( '12' , '0-521-57095-6' , '12' , '3' , '2018/4/3' ) ;
-insert into discounts values ( 1 , 'awe' , 0.7);
-insert into shippers values  ('13' , 'Gholamreza Hemati' , '09023198541');
-insert into addresses values (default , '216115' , 'taleb amoli' , 'khaneh behdasht' , '1' , 'amol');
-insert into customers_addresses values ( 12, 1);
-insert into books_genres values ('0-521-57095-6' , '1');
-insert into books_authors values ('0-521-57095-6' , 1234);
-insert into orders_details values ('1-447-12735-8' , '15' ,  34);
-
----------------------------------------------
