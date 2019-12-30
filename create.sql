@@ -539,3 +539,4 @@ CREATE OR REPLACE VIEW books_rank AS (
         GROUP BY books.isbn) AS o
   ORDER BY sold DESC, rate DESC
 );
+
