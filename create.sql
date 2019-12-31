@@ -30,11 +30,8 @@ DROP FUNCTION IF EXISTS add_price();
 DROP FUNCTION IF EXISTS sold_update();
 DROP FUNCTION IF EXISTS get_authors();
 -------------------------------------------------
-DROP VIEW IF EXISTS book_adder;
+DROP VIEW IF EXISTS book_view;
 DROP VIEW IF EXISTS books_rank;
---------------------------------f-----------------
-DROP RULE IF EXISTS adder
-ON book_adder;
 -------------------------------------------------
 ------------- Function of trigger----------------
 -------------------------------------------------
@@ -508,7 +505,7 @@ FOR EACH ROW EXECUTE PROCEDURE is_paid();
 
 --under construction
  
-CREATE VIEW book_adder AS (
+CREATE VIEW book_view AS (
   SELECT
     books.isbn,
     books.title,
